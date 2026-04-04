@@ -397,15 +397,15 @@ export default function App() {
 
   useEffect(() => {
     Promise.all([
-      fetch('./restaurants.json').then(res => {
+      fetch(`${import.meta.env.BASE_URL}restaurants.json`).then(res => {
         if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
         return res.json();
       }),
-      fetch('./tokyo-lines.json').then(res => {
+      fetch(`${import.meta.env.BASE_URL}tokyo-lines.json`).then(res => {
         if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
         return res.json();
       }),
-      fetch('./tokyo-stations.json').then(res => {
+      fetch(`${import.meta.env.BASE_URL}tokyo-stations.json`).then(res => {
         if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
         return res.json();
       })

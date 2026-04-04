@@ -34,7 +34,7 @@ jobs:
         
       - name: Build
         # 這裡使用 --base 參數，讓您完全不需要修改 vite.config.ts 也能正確讀取圖片和檔案！
-        
+        run: npx vite build
         
       - name: Setup Pages
         uses: actions/configure-pages@v4

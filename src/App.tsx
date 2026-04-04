@@ -397,9 +397,18 @@ export default function App() {
 
   useEffect(() => {
     Promise.all([
-      fetch('/restaurants.json').then(res => res.json()),
-      fetch('/tokyo-lines.json').then(res => res.json()),
-      fetch('/tokyo-stations.json').then(res => res.json())
+      fetch('./restaurants.json').then(res => {
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+        return res.json();
+      }),
+      fetch('./tokyo-lines.json').then(res => {
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+        return res.json();
+      }),
+      fetch('./tokyo-stations.json').then(res => {
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+        return res.json();
+      })
     ]).then(([restaurants, lines, stations]) => {
       setTokyoRestaurants(restaurants);
       setTokyoLinesData(lines);
@@ -409,7 +418,7 @@ export default function App() {
       console.error('Failed to load data', err);
       setIsLoadingData(false);
     });
-  }, [tokyoStationsData]);
+  }, []);
   const [sortBy, setSortBy] = useState<'score-desc' | 'score-asc'>('score-desc');
   const itemsPerPage = 50;
 

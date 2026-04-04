@@ -1,0 +1,5 @@
+{
+  "name": "Tokyo Tabelog Map",
+  "description": "Interactive map of highly-rated Tokyo restaurants (3.6+ Tabelog score)",
+  "requestFramePermissions": []
+}

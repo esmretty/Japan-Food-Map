@@ -396,16 +396,27 @@ export default function App() {
   const [isLoadingData, setIsLoadingData] = useState(true);
 
   useEffect(() => {
+    // Dynamically determine the base path from the current URL
+    // This ensures it works perfectly on GitHub Pages subdirectories
+    const getBasePath = () => {
+      let path = window.location.pathname;
+      if (path.endsWith('.html')) {
+        path = path.substring(0, path.lastIndexOf('/'));
+      }
+      return path.endsWith('/') ? path : path + '/';
+    };
+    const basePath = getBasePath();
+
     Promise.all([
-      fetch(`${import.meta.env.BASE_URL}restaurants.json`).then(res => {
+      fetch(`${basePath}restaurants.json`).then(res => {
         if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
         return res.json();
       }),
-      fetch(`${import.meta.env.BASE_URL}tokyo-lines.json`).then(res => {
+      fetch(`${basePath}tokyo-lines.json`).then(res => {
         if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
         return res.json();
       }),
-      fetch(`${import.meta.env.BASE_URL}tokyo-stations.json`).then(res => {
+      fetch(`${basePath}tokyo-stations.json`).then(res => {
         if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
         return res.json();
       })

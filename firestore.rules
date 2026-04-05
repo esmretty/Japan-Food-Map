@@ -82,6 +82,16 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    match /tokyoLines/{lineId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /tokyoStations/{stationId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     match /users/{userId} {
       allow read, write: if isAuthenticated() && request.auth.uid == userId;
       

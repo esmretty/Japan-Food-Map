@@ -398,8 +398,20 @@ export default function App() {
   useEffect(() => {
     Promise.all([
       getDocs(collection(db, 'restaurants')).then(snapshot => snapshot.docs.map(doc => doc.data() as Restaurant)),
-      fetch('/tokyo-lines.json').then(res => res.json()),
-      fetch('/tokyo-stations.json').then(res => res.json())
+      getDocs(collection(db, 'tokyoLines')).then(snapshot => ({
+        type: 'FeatureCollection',
+        features: snapshot.docs.map(doc => {
+          const data = doc.data();
+          return { ...data, geometry: JSON.parse(data.geometry) };
+        })
+      })),
+      getDocs(collection(db, 'tokyoStations')).then(snapshot => ({
+        type: 'FeatureCollection',
+        features: snapshot.docs.map(doc => {
+          const data = doc.data();
+          return { ...data, geometry: JSON.parse(data.geometry) };
+        })
+      }))
     ]).then(([restaurants, lines, stations]) => {
       setTokyoRestaurants(restaurants);
       setTokyoLinesData(lines);

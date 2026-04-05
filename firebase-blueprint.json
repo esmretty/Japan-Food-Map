@@ -76,12 +76,42 @@
         }
       },
       "required": ["id", "name", "lat", "lng"]
+    },
+    "TokyoLineFeature": {
+      "title": "Tokyo Line Feature",
+      "description": "GeoJSON feature for a Tokyo train line",
+      "type": "object",
+      "properties": {
+        "type": { "type": "string" },
+        "id": { "type": "string" },
+        "properties": { "type": "object" },
+        "geometry": { "type": "object" }
+      }
+    },
+    "TokyoStationFeature": {
+      "title": "Tokyo Station Feature",
+      "description": "GeoJSON feature for a Tokyo train station",
+      "type": "object",
+      "properties": {
+        "type": { "type": "string" },
+        "id": { "type": "string" },
+        "properties": { "type": "object" },
+        "geometry": { "type": "object" }
+      }
     }
   },
   "firestore": {
     "/restaurants/{restaurantId}": {
       "schema": "Restaurant",
       "description": "Collection of restaurants"
+    },
+    "/tokyoLines/{lineId}": {
+      "schema": "TokyoLineFeature",
+      "description": "Collection of Tokyo train line GeoJSON features"
+    },
+    "/tokyoStations/{stationId}": {
+      "schema": "TokyoStationFeature",
+      "description": "Collection of Tokyo train station GeoJSON features"
     }
   }
 }

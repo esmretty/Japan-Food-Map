@@ -38,12 +38,23 @@ interface UserRestaurantData {
 
 const cuisineTranslation: Record<string, { zh: string, group: string }> = {
   '寿司': { zh: '壽司', group: '海鮮' },
+  '回転寿司': { zh: '迴轉壽司', group: '海鮮' },
   'ラーメン': { zh: '拉麵', group: '麵類' },
+  'つけ麺': { zh: '沾麵', group: '麵類' },
+  '汁なしラーメン': { zh: '乾拌麵', group: '麵類' },
+  '台湾まぜそば': { zh: '台灣拌麵', group: '麵類' },
   'そば': { zh: '蕎麥麵', group: '麵類' },
   'うどん': { zh: '烏龍麵', group: '麵類' },
+  'カレーうどん': { zh: '咖哩烏龍麵', group: '麵類' },
   'パスタ': { zh: '義大利麵', group: '麵類' },
+  '焼きそば': { zh: '炒麵', group: '麵類' },
   '焼肉': { zh: '燒肉', group: '肉類' },
   '焼き鳥': { zh: '烤雞肉串', group: '肉類' },
+  '焼鳥': { zh: '烤雞肉串', group: '肉類' },
+  '焼きとん': { zh: '烤豬肉串', group: '肉類' },
+  '串焼き': { zh: '串燒', group: '肉類' },
+  '串揚げ': { zh: '炸串', group: '肉類' },
+  '串揚げ・串かつ': { zh: '炸串', group: '肉類' },
   'とんかつ': { zh: '炸豬排', group: '肉類' },
   'ステーキ': { zh: '牛排', group: '肉類' },
   '鉄板焼き': { zh: '鐵板燒', group: '肉類' },
@@ -51,84 +62,130 @@ const cuisineTranslation: Record<string, { zh: string, group: string }> = {
   '鳥料理': { zh: '雞肉料理', group: '肉類' },
   '牛料理': { zh: '牛肉料理', group: '肉類' },
   '豚料理': { zh: '豬肉料理', group: '肉類' },
+  '肉料理': { zh: '肉類料理', group: '肉類' },
+  'ホルモン': { zh: '內臟燒烤', group: '肉類' },
+  'もつ焼き': { zh: '烤內臟', group: '肉類' },
+  'ジンギスカン': { zh: '成吉思汗烤肉', group: '肉類' },
+  '牛タン': { zh: '牛舌', group: '肉類' },
+  '豚しゃぶ': { zh: '豬肉涮涮鍋', group: '鍋物' },
   'すき焼き': { zh: '壽喜燒', group: '鍋物' },
   'しゃぶしゃぶ': { zh: '涮涮鍋', group: '鍋物' },
   '鍋（その他）': { zh: '鍋物', group: '鍋物' },
+  '鍋': { zh: '鍋物', group: '鍋物' },
   'おでん': { zh: '關東煮', group: '鍋物' },
   'もつ鍋': { zh: '牛腸鍋', group: '鍋物' },
   '水炊き': { zh: '水炊鍋', group: '鍋物' },
+  'ちゃんこ鍋': { zh: '相撲火鍋', group: '鍋物' },
+  'うどんすき': { zh: '烏龍麵鍋', group: '鍋物' },
+  'ちりとり鍋': { zh: '平底鐵鍋', group: '鍋物' },
   'うなぎ': { zh: '鰻魚', group: '海鮮' },
+  'どじょう': { zh: '泥鰍', group: '海鮮' },
   '魚介料理・海鮮料理': { zh: '海鮮料理', group: '海鮮' },
+  '海鮮': { zh: '海鮮', group: '海鮮' },
   '天ぷら': { zh: '天婦羅', group: '海鮮' },
   '海鮮丼': { zh: '海鮮丼', group: '海鮮' },
+  'かに': { zh: '螃蟹', group: '海鮮' },
+  'ふぐ': { zh: '河豚', group: '海鮮' },
   '日本料理': { zh: '日本料理', group: '和食' },
   '懐石・会席料理': { zh: '懷石料理', group: '和食' },
   '割烹・小料理': { zh: '割烹/小料理', group: '和食' },
   '郷土料理（その他）': { zh: '鄉土料理', group: '和食' },
+  '郷土料理': { zh: '鄉土料理', group: '和食' },
   '創作料理': { zh: '創作料理', group: '和食' },
+  'ろばた焼き': { zh: '爐端燒', group: '和食' },
+  '天丼': { zh: '天婦羅丼', group: '和食' },
+  '天丼・天重': { zh: '天婦羅丼', group: '和食' },
+  '親子丼': { zh: '親子丼', group: '和食' },
+  '牛丼': { zh: '牛丼', group: '和食' },
+  '豚丼': { zh: '豬肉丼', group: '和食' },
+  'カツ丼': { zh: '豬排丼', group: '和食' },
+  '丼もの（その他）': { zh: '其他丼飯', group: '和食' },
+  '定食・食堂': { zh: '定食/食堂', group: '和食' },
+  '弁当': { zh: '便當', group: '輕食/小吃' },
+  'おにぎり': { zh: '飯糰', group: '輕食/小吃' },
   'フレンチ': { zh: '法式料理', group: '異國料理' },
+  'フランス料理': { zh: '法式料理', group: '異國料理' },
   'イタリアン': { zh: '義式料理', group: '異國料理' },
+  'イタリア料理': { zh: '義式料理', group: '異國料理' },
   '中華料理': { zh: '中華料理', group: '異國料理' },
   'スペイン料理': { zh: '西班牙料理', group: '異國料理' },
   '韓国料理': { zh: '韓式料理', group: '異國料理' },
   'タイ料理': { zh: '泰式料理', group: '異國料理' },
   'インド料理': { zh: '印度料理', group: '異國料理' },
   'ヨーロッパ料理': { zh: '歐洲料理', group: '異國料理' },
+  'ベトナム料理': { zh: '越南料理', group: '異國料理' },
+  'ネパール料理': { zh: '尼泊爾料理', group: '異國料理' },
+  'ロシア料理': { zh: '俄羅斯料理', group: '異國料理' },
+  'トルコ料理': { zh: '土耳其料理', group: '異國料理' },
+  'メキシコ料理': { zh: '墨西哥料理', group: '異國料理' },
+  'ブラジル料理': { zh: '巴西料理', group: '異國料理' },
+  '台湾料理': { zh: '台灣料理', group: '異國料理' },
   '洋食': { zh: '洋食', group: '異國料理' },
+  'イノベーティブ': { zh: '創新料理', group: '異國料理' },
+  '冷麺': { zh: '冷麵', group: '異國料理' },
   'ハンバーガー': { zh: '漢堡', group: '輕食/小吃' },
   'ピザ': { zh: '披薩', group: '輕食/小吃' },
   'カレー': { zh: '咖哩', group: '輕食/小吃' },
+  'カレーライス': { zh: '咖哩飯', group: '輕食/小吃' },
+  'スープカレー': { zh: '湯咖哩', group: '輕食/小吃' },
+  'インドカレー': { zh: '印度咖哩', group: '輕食/小吃' },
+  'タイカレー': { zh: '泰式咖哩', group: '輕食/小吃' },
+  'オムライス': { zh: '蛋包飯', group: '輕食/小吃' },
+  'ハヤシライス': { zh: '紅酒燉牛肉飯', group: '輕食/小吃' },
   '餃子': { zh: '餃子', group: '輕食/小吃' },
+  '肉まん・中華まん': { zh: '肉包/包子', group: '輕食/小吃' },
+  '飲茶・点心': { zh: '飲茶/點心', group: '輕食/小吃' },
   'お好み焼き': { zh: '大阪燒', group: '輕食/小吃' },
   'もんじゃ焼き': { zh: '文字燒', group: '輕食/小吃' },
   'たこ焼き': { zh: '章魚燒', group: '輕食/小吃' },
   'パン': { zh: '麵包', group: '輕食/小吃' },
   'サンドイッチ': { zh: '三明治', group: '輕食/小吃' },
+  'ベーグル': { zh: '貝果', group: '輕食/小吃' },
+  'ファミレス': { zh: '家庭餐廳', group: '輕食/小吃' },
+  'ファストフード': { zh: '速食', group: '輕食/小吃' },
   'カフェ': { zh: '咖啡廳', group: '甜點/咖啡' },
+  '喫茶店': { zh: '喫茶店', group: '甜點/咖啡' },
   'スイーツ（その他）': { zh: '甜點', group: '甜點/咖啡' },
+  'スイーツ': { zh: '甜點', group: '甜點/咖啡' },
   'ケーキ': { zh: '蛋糕', group: '甜點/咖啡' },
   '和菓子': { zh: '和菓子', group: '甜點/咖啡' },
+  '洋菓子': { zh: '西式甜點', group: '甜點/咖啡' },
   'かき氷': { zh: '刨冰', group: '甜點/咖啡' },
   'パフェ': { zh: '百匯', group: '甜點/咖啡' },
   'チョコレート': { zh: '巧克力', group: '甜點/咖啡' },
   'パンケーキ': { zh: '鬆餅', group: '甜點/咖啡' },
-  '喫茶店': { zh: '喫茶店', group: '甜點/咖啡' },
+  'クレープ': { zh: '可麗餅', group: '甜點/咖啡' },
+  'ジェラート・アイスクリーム': { zh: '冰淇淋', group: '甜點/咖啡' },
+  'アイスクリーム': { zh: '冰淇淋', group: '甜點/咖啡' },
+  'ソフトクリーム': { zh: '霜淇淋', group: '甜點/咖啡' },
+  'プリン': { zh: '布丁', group: '甜點/咖啡' },
+  'マカロン': { zh: '馬卡龍', group: '甜點/咖啡' },
+  'ドーナツ': { zh: '甜甜圈', group: '甜點/咖啡' },
+  'タピオカ': { zh: '珍珠奶茶', group: '甜點/咖啡' },
   '居酒屋': { zh: '居酒屋', group: '酒吧/居酒屋' },
   'ビストロ': { zh: '餐酒館', group: '酒吧/居酒屋' },
   'ワインバー': { zh: '葡萄酒吧', group: '酒吧/居酒屋' },
   'バー': { zh: '酒吧', group: '酒吧/居酒屋' },
   'ダイニングバー': { zh: '餐酒館', group: '酒吧/居酒屋' },
   'ビアバー': { zh: '啤酒吧', group: '酒吧/居酒屋' },
+  'バル': { zh: '酒吧/小酒館', group: '酒吧/居酒屋' },
+  'バル・バール': { zh: '酒吧/小酒館', group: '酒吧/居酒屋' },
+  '立ち飲み居酒屋・バー': { zh: '立吞居酒屋', group: '酒吧/居酒屋' },
+  'ビアガーデン': { zh: '啤酒花園', group: '酒吧/居酒屋' },
+  'ビアホール・ビアレストラン': { zh: '啤酒餐廳', group: '酒吧/居酒屋' },
+  'スポーツバー': { zh: '運動酒吧', group: '酒吧/居酒屋' },
+  '日本酒バー': { zh: '日本酒吧', group: '酒吧/居酒屋' },
+  '焼酎バー': { zh: '燒酎吧', group: '酒吧/居酒屋' },
   'レストラン（その他）': { zh: '其他餐廳', group: '其他' },
+  'レストラン': { zh: '餐廳', group: '其他' },
   '旅館': { zh: '旅館', group: '其他' },
   'オーベルジュ': { zh: '住宿餐廳', group: '其他' },
-  'イノベーティブ': { zh: '創新料理', group: '異國料理' },
-  'ホルモン': { zh: '內臟燒烤', group: '肉類' },
-  '海鮮': { zh: '海鮮', group: '海鮮' },
-  'バル': { zh: '酒吧/小酒館', group: '酒吧/居酒屋' },
-  '四川料理': { zh: '四川料理', group: '異國料理' },
-  'ふぐ': { zh: '河豚', group: '海鮮' },
-  '洋菓子': { zh: '西式甜點', group: '甜點/咖啡' },
   '屋形船・クルージング': { zh: '屋形船/遊船', group: '其他' },
-  'ろばた焼き': { zh: '爐端燒', group: '和食' },
-  '肉料理': { zh: '肉類料理', group: '肉類' },
-  'スイーツ': { zh: '甜點', group: '甜點/咖啡' },
-  'かに': { zh: '螃蟹', group: '海鮮' },
-  'レストラン': { zh: '餐廳', group: '其他' },
-  'つけ麺': { zh: '沾麵', group: '麵類' },
-  '郷土料理': { zh: '鄉土料理', group: '和食' },
-  '天丼': { zh: '天婦羅丼', group: '和食' },
-  '鍋': { zh: '鍋物', group: '鍋物' },
-  '親子丼': { zh: '親子丼', group: '和食' },
-  'もつ焼き': { zh: '烤內臟', group: '肉類' },
-  '台湾料理': { zh: '台灣料理', group: '異國料理' },
-  'ジェラート・アイスクリーム': { zh: '冰淇淋', group: '甜點/咖啡' },
-  'ソフトクリーム': { zh: '霜淇淋', group: '甜點/咖啡' },
-  '飲茶・点心': { zh: '飲茶/點心', group: '異國料理' },
-  '日本酒バー': { zh: '日本酒吧', group: '酒吧/居酒屋' },
+  'バイキング': { zh: '自助餐', group: '其他' },
 };
 
 const getCuisineInfo = (cuisine: string) => {
+  if (cuisine === 'UNKNOWN_OTHER') return { zh: '其他未分類', group: '其他' };
   return cuisineTranslation[cuisine] || { zh: cuisine, group: '其他' };
 };
 
@@ -155,16 +212,16 @@ function BaseLayerTracker({ onBaseLayerChange }: { onBaseLayerChange: (name: str
 }
 
 function getMarkerColor(score: number): string {
-  if (score < 4.00) return '#fb923c'; // Tailwind orange-400 (softer orange)
-  return '#f87171'; // Tailwind red-400 (softer red)
+  if (score >= 4.00) return '#a855f7'; // Tailwind purple-500
+  return '#fb923c'; // Tailwind orange-400
 }
 
 function getMarkerFillColor(score: number, userData?: UserRestaurantData): string {
   if (userData?.visited) return '#cbd5e1'; // Light Slate
   if (userData?.favorite) return '#fbcfe8'; // Light Pink
   if (userData?.wantToGo) return '#bfdbfe'; // Light Blue
-  if (score < 4.00) return '#fdba74'; // Light Orange
-  return '#fca5a5'; // Light Red
+  if (score >= 4.00) return '#d8b4fe'; // Light Purple (purple-300)
+  return '#fdba74'; // Light Orange
 }
 
 function getCuisineIcon(cuisine: string, size: number = 16) {
@@ -433,11 +490,20 @@ export default function App() {
     
     const groups: Record<string, string[]> = {};
     Array.from(cuisines).forEach(c => {
-      const info = getCuisineInfo(c);
-      if (!groups[info.group]) {
-        groups[info.group] = [];
+      if (cuisineTranslation[c]) {
+        const info = cuisineTranslation[c];
+        if (!groups[info.group]) {
+          groups[info.group] = [];
+        }
+        groups[info.group].push(c);
+      } else {
+        if (!groups['其他']) {
+          groups['其他'] = [];
+        }
+        if (!groups['其他'].includes('UNKNOWN_OTHER')) {
+          groups['其他'].push('UNKNOWN_OTHER');
+        }
       }
-      groups[info.group].push(c);
     });
     
     const priorityCuisines = [
@@ -672,7 +738,12 @@ export default function App() {
       // 2. Cuisine Filter
       if (selectedCuisines.length > 0) {
         const restaurantCuisines = r.cuisine.split('、').map(c => c.trim());
-        const hasMatch = restaurantCuisines.some(c => selectedCuisines.includes(c));
+        const hasMatch = restaurantCuisines.some(c => {
+          if (selectedCuisines.includes('UNKNOWN_OTHER') && !cuisineTranslation[c]) {
+            return true;
+          }
+          return selectedCuisines.includes(c);
+        });
         if (!hasMatch) return false;
       } else {
         // If no cuisines selected, show nothing
@@ -742,7 +813,7 @@ export default function App() {
                 onClick={() => setIsListOpen(!isListOpen)}
                 className="md:hidden flex items-center gap-1 bg-orange-100 text-orange-700 px-3 py-1.5 rounded-md font-bold text-sm"
               >
-                {isListOpen ? '隱藏列表' : '顯示列表'}
+                {isListOpen ? '隱藏列表' : '顯示列表'} ({filteredRestaurants.length})
               </button>
             </div>
 
@@ -1016,6 +1087,9 @@ export default function App() {
           {isListOpen ? <ChevronLeft className="w-5 h-5 text-white mb-2 group-hover:-translate-x-0.5 transition-transform" /> : <ChevronRight className="w-5 h-5 text-white mb-2 group-hover:translate-x-0.5 transition-transform" />}
           <span className="text-white text-xs font-bold tracking-widest" style={{ writingMode: 'vertical-rl' }}>
             {isListOpen ? '隱藏餐廳列表' : '展開餐廳列表'}
+          </span>
+          <span className="text-slate-400 text-[10px] mt-2 font-mono">
+            {filteredRestaurants.length}
           </span>
         </button>
       </div>

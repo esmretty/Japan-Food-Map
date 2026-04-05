@@ -20,7 +20,7 @@ import { twMerge } from 'tailwind-merge';
 import { type Restaurant } from './data/restaurants';
 import { auth, db, loginWithGoogle, logout } from './firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, setDoc, getDoc, onSnapshot, collection } from 'firebase/firestore';
+import { doc, setDoc, getDoc, onSnapshot, collection, getDocs } from 'firebase/firestore';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -132,7 +132,7 @@ const getCuisineInfo = (cuisine: string) => {
   return cuisineTranslation[cuisine] || { zh: cuisine, group: '其他' };
 };
 
-const groupOrder = ['麵類', '鍋物', '肉類', '海鮮', '和食', '異國料理', '輕食/小吃', '甜點/咖啡', '酒吧/居酒屋'];
+const groupOrder = ['麵類', '鍋物', '肉類', '海鮮', '和食', '異國料理', '輕食/小吃', '甜點/咖啡', '酒吧/居酒屋', '其他'];
 
 const dayMap: Record<string, string> = {
   '月': '一',
@@ -396,30 +396,10 @@ export default function App() {
   const [isLoadingData, setIsLoadingData] = useState(true);
 
   useEffect(() => {
-    // Dynamically determine the base path from the current URL
-    // This ensures it works perfectly on GitHub Pages subdirectories
-    const getBasePath = () => {
-      let path = window.location.pathname;
-      if (path.endsWith('.html')) {
-        path = path.substring(0, path.lastIndexOf('/'));
-      }
-      return path.endsWith('/') ? path : path + '/';
-    };
-    const basePath = getBasePath();
-
     Promise.all([
-      fetch(`${basePath}restaurants.json`).then(res => {
-        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-        return res.json();
-      }),
-      fetch(`${basePath}tokyo-lines.json`).then(res => {
-        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-        return res.json();
-      }),
-      fetch(`${basePath}tokyo-stations.json`).then(res => {
-        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-        return res.json();
-      })
+      getDocs(collection(db, 'restaurants')).then(snapshot => snapshot.docs.map(doc => doc.data() as Restaurant)),
+      fetch('/tokyo-lines.json').then(res => res.json()),
+      fetch('/tokyo-stations.json').then(res => res.json())
     ]).then(([restaurants, lines, stations]) => {
       setTokyoRestaurants(restaurants);
       setTokyoLinesData(lines);

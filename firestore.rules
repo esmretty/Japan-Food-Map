@@ -2,68 +2,95 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: restaurants
+    // Document ID: [restaurantId] (string)
+    // Fields:
+    //   - id: string (required)
+    //   - name: string (required)
+    //   - score: number
+    //   - cuisine: string
+    //   - url: string
+    //   - lat: number (required)
+    //   - lng: number (required)
+    //   - businessHours: string
+    //   - awards: list
+    //   - hyakumeiten: list
+    //   - photos: list
+    //   - description: string
+    //   - storeInfo: map
+    //   - address: string
+    //   - googleMapUrl: string
+    //
+    // ===============================================================
+
     // ===============================================================
     // Helper Functions
     // ===============================================================
     
+    // Check if the user is authenticated
     function isAuthenticated() {
       return request.auth != null;
     }
-    
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
-    }
-    
-    function isValidPreferences(prefs) {
-      return prefs == null || (
-        (prefs.keys().hasOnly(['selectedCuisines', 'minScore', 'maxScore', 'selectedDays', 'requireAward', 'requireHyakumeiten'])) &&
-        (!('selectedCuisines' in prefs) || prefs.selectedCuisines is list) &&
-        (!('minScore' in prefs) || prefs.minScore is number) &&
-        (!('maxScore' in prefs) || prefs.maxScore is number) &&
-        (!('selectedDays' in prefs) || prefs.selectedDays is list) &&
-        (!('requireAward' in prefs) || prefs.requireAward is bool) &&
-        (!('requireHyakumeiten' in prefs) || prefs.requireHyakumeiten is bool)
-      );
+
+    // Check if user is an admin (Bootstrapped with user email)
+    function isAdmin() {
+      return isAuthenticated() && 
+        (request.auth.token.email == "retty.liu@gmail.com" && request.auth.token.email_verified == true);
     }
 
-    function isValidUserProfile(data) {
-      return data.keys().hasOnly(['email', 'displayName', 'preferences', 'updatedAt']) &&
-             data.email is string &&
-             (!('displayName' in data) || data.displayName is string) &&
-             (!('preferences' in data) || isValidPreferences(data.preferences)) &&
-             (!('updatedAt' in data) || data.updatedAt is string);
+    // Validate required fields exist
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
     }
 
-    function isValidUserRestaurantData(data) {
-      return data.keys().hasOnly(['visited', 'wishlist', 'favorite', 'wantToGo', 'rating', 'notes', 'updatedAt']) &&
-             (!('visited' in data) || data.visited is bool) &&
-             (!('wishlist' in data) || data.wishlist is bool) &&
-             (!('favorite' in data) || data.favorite is bool) &&
-             (!('wantToGo' in data) || data.wantToGo is bool) &&
-             (!('rating' in data) || (data.rating is number && data.rating >= 0 && data.rating <= 5)) &&
-             (!('notes' in data) || (data.notes is string && data.notes.size() <= 2000)) &&
-             ('updatedAt' in data && data.updatedAt is string);
+    // Validate Restaurant
+    function isValidRestaurant() {
+      let data = request.resource.data;
+      return hasRequiredFields(['id', 'name', 'lat', 'lng']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() < 100 &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 200 &&
+             data.lat is number &&
+             data.lng is number &&
+             (!('score' in data) || data.score is number) &&
+             (!('cuisine' in data) || (data.cuisine is string && data.cuisine.size() < 100)) &&
+             (!('url' in data) || (data.url is string && data.url.size() < 500)) &&
+             (!('businessHours' in data) || (data.businessHours is string && data.businessHours.size() < 500)) &&
+             (!('awards' in data) || data.awards is list) &&
+             (!('hyakumeiten' in data) || data.hyakumeiten is list) &&
+             (!('photos' in data) || data.photos is list) &&
+             (!('description' in data) || (data.description is string && data.description.size() < 5000)) &&
+             (!('storeInfo' in data) || data.storeInfo is map) &&
+             (!('address' in data) || (data.address is string && data.address.size() < 500)) &&
+             (!('googleMapUrl' in data) || (data.googleMapUrl is string && data.googleMapUrl.size() < 1000));
     }
 
     // ===============================================================
     // Rules
     // ===============================================================
 
-    match /users/{userId} {
-      allow read: if isOwner(userId);
-      allow create: if isOwner(userId) && isValidUserProfile(request.resource.data);
-      allow update: if isOwner(userId) && isValidUserProfile(request.resource.data);
+    match /restaurants/{restaurantId} {
+      // Anyone can read the restaurant data (public map)
+      allow read: if true;
       
-      match /preferences/{prefId} {
-        allow read, write: if isOwner(userId);
-      }
+      // Only admins can create/update/delete restaurants
+      allow create: if isAdmin() && isValidRestaurant();
+      allow update: if isAdmin() && isValidRestaurant();
+      allow delete: if isAdmin();
+    }
 
-      match /restaurants/{restaurantId} {
-        allow read: if isOwner(userId);
-        allow create: if isOwner(userId) && isValidUserRestaurantData(request.resource.data);
-        allow update: if isOwner(userId) && isValidUserRestaurantData(request.resource.data);
-        allow delete: if isOwner(userId);
+    match /users/{userId} {
+      allow read, write: if isAuthenticated() && request.auth.uid == userId;
+      
+      match /preferences/{document=**} {
+        allow read, write: if isAuthenticated() && request.auth.uid == userId;
+      }
+      
+      match /restaurants/{document=**} {
+        allow read, write: if isAuthenticated() && request.auth.uid == userId;
       }
     }
   }

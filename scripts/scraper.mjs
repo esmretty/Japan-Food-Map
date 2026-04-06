@@ -27,7 +27,7 @@ const areas = [
 ];
 
 const MAX_SCORE = 5.00;
-const MIN_SCORE = 3.30;
+const MIN_SCORE = 3.40;
 const LIST_DELAY_MS = 2500;
 const DETAIL_DELAY_MS = 2000;
 
@@ -170,7 +170,7 @@ async function scrapeDetailPage(url, name) {
 }
 
 async function scrape() {
-  console.log('🚀 開始執行 Tabelog 深度爬蟲 (目標: >= 3.30, 包含中文名與座標)...');
+  console.log('🚀 開始執行 Tabelog 深度爬蟲 (目標: >= 3.40, 包含中文名與座標)...');
   
   for (const area of areas) {
     let page = 1;

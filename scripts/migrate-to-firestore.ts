@@ -9,7 +9,7 @@ const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 
 async function migrate() {
   console.log('Starting migration...');
-  const dataPath = join(process.cwd(), 'public', 'restaurants.json');
+  const dataPath = join(process.cwd(), 'src', 'data', 'tabelog_new_data.json');
   const data = JSON.parse(readFileSync(dataPath, 'utf8'));
   
   const CHUNK_SIZE = 400; // Firestore batch limit is 500

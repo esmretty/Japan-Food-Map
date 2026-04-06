@@ -2,18 +2,34 @@ import fs from 'fs';
 import * as cheerio from 'cheerio';
 import path from 'path';
 
-// Tabelog 東京主要小區域代碼 (節錄高密度區域)
+// 東京主要細分區域 (涵蓋主要美食熱區，確保每個區域 3.3 以上不會超過 1200 家)
 const areas = [
-  "A130101", "A130102", "A130103", "A130201", "A130202", "A130301", "A130302", "A130303",
-  "A130401", "A130402", "A130403", "A130501", "A130601", "A130602", "A130603", "A130701",
-  "A130702", "A130703", "A130801", "A130802", "A130905", "A131001", "A131101", "A131201",
-  "A131401", "A131501"
+  "A130101", "A130102", "A130103", // 銀座、新橋、有楽町
+  "A130201", "A130202", "A130203", "A130204", // 東京、丸の内、日本橋
+  "A130301", "A130302", "A130303", // 渋谷、恵比寿、代官山
+  "A130401", "A130402", "A130403", "A130404", // 新宿、代々木、大久保
+  "A130501", "A130502", "A130503", "A130504", // 池袋、目白
+  "A130601", "A130602", "A130603", // 原宿、表参道、青山
+  "A130701", "A130702", "A130703", "A130704", // 六本木、麻布、広尾
+  "A130801", "A130802", "A130803", // 赤坂、溜池山王
+  "A130901", "A130902", "A130903", "A130904", "A130905", // 神楽坂、飯田橋、四ツ谷
+  "A131001", "A131002", "A131003", "A131004", // 秋葉原、神田、御茶ノ水
+  "A131101", "A131102", "A131103", // 上野、浅草、日暮里
+  "A131201", "A131202", "A131203", // 錦糸町、両国
+  "A131301", "A131302", "A131303", // 築地、月島、門前仲町
+  "A131401", "A131402", "A131403", // 浜松町、田町、品川
+  "A131501", "A131502", "A131503", // 大井町、大森、蒲田
+  "A131601", "A131602", "A131603", // 目黒、白金、五反田
+  "A131701", "A131702", "A131703", // 中目黒、三軒茶屋、二子玉川
+  "A131801", "A131802", // 下北沢、明大前
+  "A131901", "A131902", // 中野、高円寺
+  "A132001", "A132002", // 吉祥寺、三鷹
 ];
 
-const MAX_SCORE = 3.73; // 最高分數限制 (因為 3.74 以上已經抓過了)
-const MIN_SCORE = 3.50; // 最低分數限制
-const LIST_DELAY_MS = 3000;   // 列表頁請求間隔 3 秒
-const DETAIL_DELAY_MS = 2000; // 詳細頁請求間隔 2 秒
+const MAX_SCORE = 5.00;
+const MIN_SCORE = 3.30;
+const LIST_DELAY_MS = 2500;
+const DETAIL_DELAY_MS = 2000;
 
 const results = {};
 
@@ -21,14 +37,13 @@ async function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// 帶有重試機制的 fetch，避免偶發的網路錯誤或 403 阻擋
 async function fetchWithRetry(url, retries = 3) {
   for (let i = 0; i < retries; i++) {
     try {
       const response = await fetch(url, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-          'Accept-Language': 'ja-JP,ja;q=0.9,en-US;q=0.8,en;q=0.7',
+          'Accept-Language': 'ja-JP,ja;q=0.9,zh-TW;q=0.8,zh;q=0.7,en-US;q=0.6,en;q=0.5',
           'Referer': 'https://tabelog.com/'
         }
       });
@@ -38,7 +53,6 @@ async function fetchWithRetry(url, retries = 3) {
         continue;
       }
       if (response.status === 404) {
-        console.log(`⚠️ 404 Not Found. 網址無效或已無下一頁。`);
         return null;
       }
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -51,8 +65,30 @@ async function fetchWithRetry(url, retries = 3) {
   return null;
 }
 
-// 進入餐廳詳細頁面抓取完整資訊 (座標、營業時間、照片等)
-async function scrapeDetailPage(url) {
+async function scrapeTwName(url) {
+  try {
+    const twUrl = url.replace('tabelog.com/', 'tabelog.com/tw/');
+    const html = await fetchWithRetry(twUrl);
+    if (!html) return '';
+    const $ = cheerio.load(html);
+    
+    let nameTw = '';
+    const headerName = $('.rd-header__rst-name-main').text().trim();
+    if (headerName) {
+      nameTw = headerName;
+    } else {
+      const title = $('title').text();
+      if (title) {
+        nameTw = title.split('-')[0].trim();
+      }
+    }
+    return nameTw;
+  } catch (e) {
+    return '';
+  }
+}
+
+async function scrapeDetailPage(url, name) {
   const html = await fetchWithRetry(url);
   if (!html) return null;
 
@@ -67,10 +103,13 @@ async function scrapeDetailPage(url) {
     hyakumeiten: [],
     photos: [],
     description: '',
-    storeInfo: {}
+    storeInfo: {},
+    nameTw: '',
+    googleMapUrl: ''
   };
 
-  // 1. 從 JSON-LD 抓取精確的經緯度與地址
+  detail.nameTw = await scrapeTwName(url);
+
   $('script[type="application/ld+json"]').each((_, el) => {
     try {
       const data = JSON.parse($(el).html());
@@ -86,7 +125,6 @@ async function scrapeDetailPage(url) {
     } catch(e){}
   });
 
-  // 2. 經緯度備用方案：從網頁原始碼的變數中抓取
   if (!detail.lat || !detail.lng) {
      const mapMatch = html.match(/latitude\s*:\s*([\d.]+),\s*longitude\s*:\s*([\d.]+)/);
      if (mapMatch) {
@@ -95,7 +133,6 @@ async function scrapeDetailPage(url) {
      }
   }
 
-  // 3. 解析詳細資訊表格 (營業時間、料理種類等)
   $('.c-table--form tr').each((_, el) => {
     const key = $(el).find('th').text().trim();
     const val = $(el).find('td').text().trim().replace(/\s+/g, ' ');
@@ -107,18 +144,15 @@ async function scrapeDetailPage(url) {
     }
   });
 
-  // 4. 抓取照片
   $('.rstdtl-top-postphoto__item img, .js-image-gallery img').each((_, el) => {
     const src = $(el).attr('src') || $(el).attr('data-src');
     if (src && !detail.photos.includes(src)) detail.photos.push(src);
   });
 
-  // 5. 抓取餐廳描述
   const title = $('.pr-comment-title').text().trim();
   const body = $('.pr-comment-body').text().trim();
   detail.description = [title, body].filter(Boolean).join('\n');
 
-  // 6. 抓取百名店與得獎紀錄
   $('.award-badge, .award-badge-hyakumeiten, .js-award-badge').each((_, el) => {
     const text = $(el).text().trim();
     if (text.includes('百名店')) {
@@ -128,20 +162,24 @@ async function scrapeDetailPage(url) {
     }
   });
 
+  if (detail.address) {
+    detail.googleMapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(name + ' ' + detail.address)}`;
+  }
+
   return detail;
 }
 
 async function scrape() {
-  console.log('🚀 開始執行 Tabelog 深度爬蟲 (包含座標與詳細資訊)...');
+  console.log('🚀 開始執行 Tabelog 深度爬蟲 (目標: >= 3.30, 包含中文名與座標)...');
   
   for (const area of areas) {
     let page = 1;
     let keepGoing = true;
 
     while (keepGoing) {
-      const parentArea = area.substring(0, 5); // e.g., A130101 -> A1301
+      const parentArea = area.substring(0, 5);
       const listUrl = `https://tabelog.com/tokyo/${parentArea}/${area}/rstLst/${page}/?SrtT=rt&Srt=D`;
-      console.log(`\n📍 正在抓取區域 ${area} 的第 ${page} 頁列表...`);
+      console.log(`\n📍 [${area}] 正在抓取第 ${page} 頁列表... (目前總計: ${Object.keys(results).length} 家)`);
       
       const listHtml = await fetchWithRetry(listUrl);
       if (!listHtml) {
@@ -162,19 +200,12 @@ async function scrape() {
         const scoreText = $(el).find('.list-rst__rating-val').text();
         const score = parseFloat(scoreText);
 
-        // 忽略沒有分數的廣告 (PR) 或尚未評分的餐廳
-        if (isNaN(score) || score === 0) {
-          continue;
-        }
+        if (isNaN(score) || score === 0) continue;
 
         const nameEl = $(el).find('.list-rst__rst-name-target');
         const name = nameEl.text();
 
-        // 如果分數高於我們設定的最大值，代表這家已經抓過了，跳過這家
-        if (score > MAX_SCORE) {
-          console.log(`  ⏭️ 跳過: ${name} (${score}分) - 高於 ${MAX_SCORE}`);
-          continue;
-        }
+        if (score > MAX_SCORE) continue;
 
         if (score < MIN_SCORE) {
           console.log(`⏭️ 分數 (${score}) 低於 ${MIN_SCORE}，跳到下一個區域`);
@@ -186,10 +217,9 @@ async function scrape() {
         const id = rstUrl ? rstUrl.split('/').filter(Boolean).pop() : null;
 
         if (id && name && !results[id]) {
-          console.log(`  ⏳ 正在進入詳細頁面抓取: ${name} (${score}分)`);
+          console.log(`  ⏳ 抓取詳細: ${name} (${score}分)`);
           
-          // 進入詳細頁面抓取座標與其他資訊
-          const detail = await scrapeDetailPage(rstUrl);
+          const detail = await scrapeDetailPage(rstUrl, name);
           
           if (detail) {
             results[id] = { 
@@ -199,12 +229,12 @@ async function scrape() {
               url: rstUrl, 
               ...detail 
             };
-            console.log(`  ✅ 成功: ${name} (座標: ${detail.lat}, ${detail.lng})`);
+            console.log(`  ✅ 成功: ${name} ${detail.nameTw ? '('+detail.nameTw+')' : ''} - 座標: ${detail.lat}, ${detail.lng}`);
           } else {
             console.log(`  ❌ 失敗: 無法取得 ${name} 的詳細資訊`);
           }
 
-          await sleep(DETAIL_DELAY_MS); // 休息 2 秒避免被封鎖
+          await sleep(DETAIL_DELAY_MS);
         }
       }
 
@@ -214,15 +244,13 @@ async function scrape() {
       }
     }
     
-    // 確保目錄存在
     const dir = path.join(process.cwd(), 'src', 'data');
     if (!fs.existsSync(dir)){
         fs.mkdirSync(dir, { recursive: true });
     }
     
-    // 每個區域抓完後存檔一次
     fs.writeFileSync(path.join(dir, 'tabelog_new_data.json'), JSON.stringify(Object.values(results), null, 2));
-    console.log(`💾 目前已抓取 ${Object.keys(results).length} 筆完整資料並存檔`);
+    console.log(`💾 區域 ${area} 完成，目前已存檔 ${Object.keys(results).length} 筆資料`);
   }
   
   console.log('✅ 全部抓取完成！資料已儲存至 src/data/tabelog_new_data.json');

@@ -447,7 +447,7 @@ export default function App() {
 
       // 1. Search Query
       const query = searchQuery.toLowerCase();
-      const matchesSearch = r.name.toLowerCase().includes(query);
+      const matchesSearch = r.name.toLowerCase().includes(query) || (r.nameTw && r.nameTw.toLowerCase().includes(query));
       if (!matchesSearch) return false;
 
       // 1.5 Ward Filter

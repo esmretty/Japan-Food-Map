@@ -46,7 +46,8 @@ export const RestaurantCard: React.FC<RestaurantCardProps> = ({
         {/* Row 1: Name, Score, Buttons */}
         <div className="flex justify-between items-start gap-2">
           <h3 className="font-bold text-sm text-slate-900 group-hover:text-orange-600 transition-colors leading-tight flex-1">
-            {restaurant.name}
+            {restaurant.nameTw || restaurant.name}
+            {restaurant.nameTw && <span className="text-xs text-slate-500 font-normal ml-1">({restaurant.name})</span>}
             {restaurant.lat === 0 && <span className="ml-1 text-[10px] font-normal text-slate-400 bg-slate-100 px-1 rounded">住所非公開</span>}
           </h3>
           <div className="flex items-center gap-1.5 shrink-0">

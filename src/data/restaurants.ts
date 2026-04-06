@@ -1,6 +1,7 @@
 export interface Restaurant {
   id: string;
   name: string;
+  nameTw?: string;
   score: number;
   cuisine: string;
   url: string;

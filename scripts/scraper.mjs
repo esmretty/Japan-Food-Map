@@ -10,7 +10,8 @@ const areas = [
   "A131401", "A131501"
 ];
 
-const MIN_SCORE = 3.50; // 只抓 3.5 分以上的
+const MAX_SCORE = 3.73; // 最高分數限制 (因為 3.74 以上已經抓過了)
+const MIN_SCORE = 3.50; // 最低分數限制
 const LIST_DELAY_MS = 3000;   // 列表頁請求間隔 3 秒
 const DETAIL_DELAY_MS = 2000; // 詳細頁請求間隔 2 秒
 
@@ -159,7 +160,21 @@ async function scrape() {
       for (let i = 0; i < restaurants.length; i++) {
         const el = restaurants[i];
         const scoreText = $(el).find('.list-rst__rating-val').text();
-        const score = parseFloat(scoreText) || 0;
+        const score = parseFloat(scoreText);
+
+        // 忽略沒有分數的廣告 (PR) 或尚未評分的餐廳
+        if (isNaN(score) || score === 0) {
+          continue;
+        }
+
+        const nameEl = $(el).find('.list-rst__rst-name-target');
+        const name = nameEl.text();
+
+        // 如果分數高於我們設定的最大值，代表這家已經抓過了，跳過這家
+        if (score > MAX_SCORE) {
+          console.log(`  ⏭️ 跳過: ${name} (${score}分) - 高於 ${MAX_SCORE}`);
+          continue;
+        }
 
         if (score < MIN_SCORE) {
           console.log(`⏭️ 分數 (${score}) 低於 ${MIN_SCORE}，跳到下一個區域`);
@@ -167,8 +182,6 @@ async function scrape() {
           break;
         }
 
-        const nameEl = $(el).find('.list-rst__rst-name-target');
-        const name = nameEl.text();
         const rstUrl = nameEl.attr('href');
         const id = rstUrl ? rstUrl.split('/').filter(Boolean).pop() : null;
 

@@ -36,6 +36,10 @@ async function fetchWithRetry(url, retries = 3) {
         await sleep(15000);
         continue;
       }
+      if (response.status === 404) {
+        console.log(`⚠️ 404 Not Found. 網址無效或已無下一頁。`);
+        return null;
+      }
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       return await response.text();
     } catch (error) {
@@ -134,7 +138,8 @@ async function scrape() {
     let keepGoing = true;
 
     while (keepGoing) {
-      const listUrl = `https://tabelog.com/tokyo/${area}/rstLst/${page}/?SrtT=rt&Srt=D`;
+      const parentArea = area.substring(0, 5); // e.g., A130101 -> A1301
+      const listUrl = `https://tabelog.com/tokyo/${parentArea}/${area}/rstLst/${page}/?SrtT=rt&Srt=D`;
       console.log(`\n📍 正在抓取區域 ${area} 的第 ${page} 頁列表...`);
       
       const listHtml = await fetchWithRetry(listUrl);

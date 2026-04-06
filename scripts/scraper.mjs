@@ -1,8 +1,9 @@
 import fs from 'fs';
 import * as cheerio from 'cheerio';
 import path from 'path';
+import { execSync } from 'child_process';
 
-// 東京主要細分區域 (涵蓋主要美食熱區，確保每個區域 3.3 以上不會超過 1200 家)
+// 東京主要細分區域 (64個)
 const areas = [
   "A130101", "A130102", "A130103", // 銀座、新橋、有楽町
   "A130201", "A130202", "A130203", "A130204", // 東京、丸の内、日本橋
@@ -31,10 +32,81 @@ const MIN_SCORE = 3.40;
 const LIST_DELAY_MS = 2500;
 const DETAIL_DELAY_MS = 2000;
 
-const results = {};
+// 取得當前執行的 Part (1~4)
+const totalParts = 4;
+const partIndex = parseInt(process.argv[2], 10) || 1;
+const chunkSize = Math.ceil(areas.length / totalParts);
+const myAreas = areas.slice((partIndex - 1) * chunkSize, partIndex * chunkSize);
+
+const dir = path.join(process.cwd(), 'src', 'data');
+if (!fs.existsSync(dir)){
+    fs.mkdirSync(dir, { recursive: true });
+}
+
+const dataPath = path.join(dir, `tabelog_part${partIndex}.json`);
+const progressPath = path.join(dir, `progress_part${partIndex}.json`);
+
+let results = {};
+let completedAreas = [];
+
+// 讀取斷點續傳資料
+if (fs.existsSync(dataPath)) {
+  try {
+    const existingData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+    existingData.forEach(item => results[item.id] = item);
+    console.log(`📂 已載入既有資料，共 ${existingData.length} 筆`);
+  } catch (e) {
+    console.log('⚠️ 讀取既有資料失敗，將重新開始');
+  }
+}
+
+if (fs.existsSync(progressPath)) {
+  try {
+    completedAreas = JSON.parse(fs.readFileSync(progressPath, 'utf8')).completedAreas || [];
+    console.log(`📂 已載入進度，已完成區域: ${completedAreas.join(', ')}`);
+  } catch (e) {}
+}
 
 async function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function commitAndPush(area) {
+  try {
+    console.log(`\n📦 準備提交區域 ${area} 的進度...`);
+    execSync('git config --local user.email "action@github.com"');
+    execSync('git config --local user.name "GitHub Action"');
+    execSync('git add src/data/');
+    
+    const status = execSync('git status --porcelain').toString();
+    if (!status) {
+        console.log('沒有需要提交的變更。');
+        return;
+    }
+    
+    execSync(`git commit -m "Auto-update Tabelog data: Part ${partIndex} - Area ${area}"`);
+    
+    let pushed = false;
+    for (let i = 0; i < 5; i++) {
+        try {
+            console.log(`⬇️ 正在拉取最新程式碼 (嘗試 ${i+1}/5)...`);
+            execSync('git pull --rebase origin main');
+            console.log(`⬆️ 正在推送到 GitHub (嘗試 ${i+1}/5)...`);
+            execSync('git push origin main');
+            pushed = true;
+            console.log(`✅ 區域 ${area} 進度已成功推送到 GitHub！\n`);
+            break;
+        } catch (pushErr) {
+            console.log(`⚠️ 推送失敗，等待隨機時間後重試...`);
+            await sleep(Math.floor(Math.random() * 8000) + 2000);
+        }
+    }
+    if (!pushed) {
+        console.log(`❌ 放棄推送區域 ${area}，將在下一個區域完成時再次嘗試。`);
+    }
+  } catch (error) {
+    console.log(`⚠️ Git 提交過程發生錯誤: ${error.message}`);
+  }
 }
 
 async function fetchWithRetry(url, retries = 3) {
@@ -170,9 +242,15 @@ async function scrapeDetailPage(url, name) {
 }
 
 async function scrape() {
-  console.log('🚀 開始執行 Tabelog 深度爬蟲 (目標: >= 3.40, 包含中文名與座標)...');
+  console.log(`🚀 開始執行 Tabelog 深度爬蟲 Part ${partIndex}/4 (目標: >= 3.40)...`);
+  console.log(`負責區域: ${myAreas.join(', ')}`);
   
-  for (const area of areas) {
+  for (const area of myAreas) {
+    if (completedAreas.includes(area)) {
+      console.log(`\n⏭️ 區域 [${area}] 已經抓取過，直接跳過...`);
+      continue;
+    }
+
     let page = 1;
     let keepGoing = true;
 
@@ -244,16 +322,17 @@ async function scrape() {
       }
     }
     
-    const dir = path.join(process.cwd(), 'src', 'data');
-    if (!fs.existsSync(dir)){
-        fs.mkdirSync(dir, { recursive: true });
-    }
-    
-    fs.writeFileSync(path.join(dir, 'tabelog_new_data.json'), JSON.stringify(Object.values(results), null, 2));
+    // 該區域抓取完畢，存檔並標記為完成
+    fs.writeFileSync(dataPath, JSON.stringify(Object.values(results), null, 2));
+    completedAreas.push(area);
+    fs.writeFileSync(progressPath, JSON.stringify({ completedAreas }, null, 2));
     console.log(`💾 區域 ${area} 完成，目前已存檔 ${Object.keys(results).length} 筆資料`);
+    
+    // 推送到 GitHub
+    await commitAndPush(area);
   }
   
-  console.log('✅ 全部抓取完成！資料已儲存至 src/data/tabelog_new_data.json');
+  console.log(`✅ Part ${partIndex} 全部抓取完成！資料已儲存至 ${dataPath}`);
 }
 
 scrape();

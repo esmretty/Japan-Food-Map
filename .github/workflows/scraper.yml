@@ -5,12 +5,21 @@ on:
   schedule:
     - cron: '0 0 * * 0' # 每週日凌晨執行一次 (可選)
 
+permissions:
+  contents: write # 允許 Action 寫入並 Push 程式碼
+
 jobs:
   scrape:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        part: [1, 2, 3, 4]
+      fail-fast: false # 讓其他 part 即使有某個 part 失敗也能繼續跑
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 確保 git pull --rebase 正常運作
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -20,14 +29,5 @@ jobs:
       - name: Install dependencies
         run: npm install && npm install cheerio
 
-      - name: Run Scraper
-        run: node scripts/scraper.mjs
-
-      - name: Commit and Push changes
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add src/data/tabelog_new_data.json
-          # 如果有新資料就 commit 並 push，沒有新資料就不做動作
-          git commit -m "Auto-update Tabelog data" || echo "No changes to commit"
-          git push
+      - name: Run Scraper Part ${{ matrix.part }}
+        run: node scripts/scraper.mjs ${{ matrix.part }}

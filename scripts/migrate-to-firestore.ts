@@ -1,4 +1,4 @@
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, writeBatch, doc } from 'firebase/firestore';
@@ -9,8 +9,23 @@ const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 
 async function migrate() {
   console.log('Starting migration...');
-  const dataPath = join(process.cwd(), 'src', 'data', 'tabelog_new_data.json');
-  const data = JSON.parse(readFileSync(dataPath, 'utf8'));
+  let data: any[] = [];
+  
+  for (let i = 1; i <= 4; i++) {
+    const dataPath = join(process.cwd(), 'src', 'data', `tabelog_part${i}.json`);
+    if (existsSync(dataPath)) {
+      const partData = JSON.parse(readFileSync(dataPath, 'utf8'));
+      data = data.concat(partData);
+      console.log(`Loaded part ${i}: ${partData.length} records`);
+    }
+  }
+  
+  if (data.length === 0) {
+    console.log('No data found to migrate. Please run the scraper first.');
+    process.exit(0);
+  }
+  
+  console.log(`Total records to migrate: ${data.length}`);
   
   const CHUNK_SIZE = 400; // Firestore batch limit is 500
   

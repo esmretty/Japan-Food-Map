@@ -99,8 +99,17 @@ export default function App() {
   const [tokyoLinesData, setTokyoLinesData] = useState<any>(null);
   const [tokyoStationsData, setTokyoStationsData] = useState<any>(null);
   const [isLoadingData, setIsLoadingData] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState(0);
 
   useEffect(() => {
+    // Simulate loading progress
+    const progressInterval = setInterval(() => {
+      setLoadingProgress(prev => {
+        if (prev >= 90) return prev;
+        return prev + Math.random() * 15;
+      });
+    }, 400);
+
     const fetchWithCache = async (collectionName: string) => {
       const colRef = collection(db, collectionName);
       try {
@@ -137,11 +146,18 @@ export default function App() {
       setTokyoRestaurants(restaurants);
       setTokyoLinesData(lines);
       setTokyoStationsData(stations);
-      setIsLoadingData(false);
+      
+      // Complete the progress bar smoothly
+      clearInterval(progressInterval);
+      setLoadingProgress(100);
+      setTimeout(() => setIsLoadingData(false), 400);
     }).catch(err => {
       console.error('Failed to load data', err);
+      clearInterval(progressInterval);
       setIsLoadingData(false);
     });
+
+    return () => clearInterval(progressInterval);
   }, []);
   const [sortBy, setSortBy] = useState<'score-desc' | 'score-asc'>('score-desc');
   const itemsPerPage = 50;
@@ -505,6 +521,49 @@ export default function App() {
 
   const totalPages = Math.ceil(filteredRestaurants.length / itemsPerPage);
   const paginatedRestaurants = filteredRestaurants.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  if (isLoadingData) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-slate-50 relative overflow-hidden">
+        {/* Background decorative elements */}
+        <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
+          <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-orange-200/20 rounded-full blur-3xl"></div>
+          <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-200/20 rounded-full blur-3xl"></div>
+        </div>
+        
+        <div className="flex flex-col items-center gap-6 max-w-sm w-full px-6 z-10">
+          <div className="w-20 h-20 bg-white rounded-2xl flex items-center justify-center shadow-lg border border-slate-100 mb-2 relative">
+            <div className="absolute inset-0 border-4 border-orange-100 rounded-2xl animate-ping opacity-20"></div>
+            <Utensils className="w-10 h-10 text-orange-500 animate-pulse" />
+          </div>
+          
+          <div className="w-full space-y-3 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+            <div className="flex justify-between items-end">
+              <p className="text-slate-700 font-bold text-lg">載入東京美食地圖...</p>
+              <span className="text-orange-600 font-bold text-sm bg-orange-50 px-2 py-0.5 rounded-md">{Math.round(loadingProgress)}%</span>
+            </div>
+            
+            <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden shadow-inner relative">
+              <div 
+                className="absolute top-0 left-0 h-full bg-gradient-to-r from-orange-400 to-orange-500 rounded-full transition-all duration-300 ease-out"
+                style={{ width: `${loadingProgress}%` }}
+              >
+                {/* Shimmer effect inside progress bar */}
+                <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full animate-[shimmer_1.5s_infinite]"></div>
+              </div>
+            </div>
+            
+            <p className="text-slate-400 text-xs text-center mt-2 flex items-center justify-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-bounce" style={{ animationDelay: '0ms' }}></span>
+              <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-bounce" style={{ animationDelay: '150ms' }}></span>
+              <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-bounce" style={{ animationDelay: '300ms' }}></span>
+              <span className="ml-1">正在從資料庫讀取餐廳與地圖資料</span>
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col-reverse md:flex-row h-screen w-full bg-slate-50 font-sans overflow-hidden relative">

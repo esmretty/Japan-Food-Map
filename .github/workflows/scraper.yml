@@ -1,0 +1,31 @@
+name: Tabelog Scraper
+
+on:
+  workflow_dispatch: # 允許在 GitHub 網頁上手動點擊執行
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install cheerio
+
+      - name: Run Scraper
+        run: node scripts/scraper.mjs
+
+      - name: Commit and Push changes
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add src/data/tabelog_new_data.json
+          # 如果有新資料就 commit 並 push，沒有新資料就不做動作
+          git commit -m "Auto-update Tabelog data" || echo "No changes to commit"
+          git push

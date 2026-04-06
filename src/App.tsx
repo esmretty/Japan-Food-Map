@@ -12,365 +12,20 @@ import {
   Star, MapPin, ExternalLink, Info, Utensils, Search,
   Fish, UtensilsCrossed, Pizza, Wine, Flame, Shrimp, Sparkles, Beef, Drumstick, Soup,
   Trophy, Medal, ChevronDown, ChevronRight, ChevronLeft, X, Heart, CheckCircle2, LogIn, LogOut,
-  Users, CigaretteOff, Cigarette, CalendarCheck, Globe, Clock, Phone, Bookmark,
+  Users, CigaretteOff, Cigarette, CalendarCheck, Calendar, Globe, Clock, Phone, Bookmark,
   Coffee, Cake, IceCream, Beer, Martini, Croissant, Sandwich, Salad, Dessert, Candy, Donut, ChefHat
 } from 'lucide-react';
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
 import { type Restaurant } from './data/restaurants';
 import { auth, db, loginWithGoogle, logout } from './firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, setDoc, getDoc, onSnapshot, collection, getDocs } from 'firebase/firestore';
+import { doc, setDoc, getDoc, onSnapshot, collection, getDocs, getDocsFromCache, getDocsFromServer } from 'firebase/firestore';
 
-function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
-
-interface UserRestaurantData {
-  visited?: boolean;
-  wishlist?: boolean;
-  favorite?: boolean;
-  wantToGo?: boolean;
-  rating?: number;
-  notes?: string;
-  updatedAt?: string;
-}
-
-const cuisineTranslation: Record<string, { zh: string, group: string }> = {
-  '寿司': { zh: '壽司', group: '海鮮' },
-  '回転寿司': { zh: '迴轉壽司', group: '海鮮' },
-  'ラーメン': { zh: '拉麵', group: '麵類' },
-  'つけ麺': { zh: '沾麵', group: '麵類' },
-  '汁なしラーメン': { zh: '乾拌麵', group: '麵類' },
-  '台湾まぜそば': { zh: '台灣拌麵', group: '麵類' },
-  'そば': { zh: '蕎麥麵', group: '麵類' },
-  'うどん': { zh: '烏龍麵', group: '麵類' },
-  'カレーうどん': { zh: '咖哩烏龍麵', group: '麵類' },
-  'パスタ': { zh: '義大利麵', group: '麵類' },
-  '焼きそば': { zh: '炒麵', group: '麵類' },
-  '焼肉': { zh: '燒肉', group: '肉類' },
-  '焼き鳥': { zh: '烤雞肉串', group: '肉類' },
-  '焼鳥': { zh: '烤雞肉串', group: '肉類' },
-  '焼きとん': { zh: '烤豬肉串', group: '肉類' },
-  '串焼き': { zh: '串燒', group: '肉類' },
-  '串揚げ': { zh: '炸串', group: '肉類' },
-  '串揚げ・串かつ': { zh: '炸串', group: '肉類' },
-  'とんかつ': { zh: '炸豬排', group: '肉類' },
-  'ステーキ': { zh: '牛排', group: '肉類' },
-  '鉄板焼き': { zh: '鐵板燒', group: '肉類' },
-  'ハンバーグ': { zh: '漢堡排', group: '肉類' },
-  '鳥料理': { zh: '雞肉料理', group: '肉類' },
-  '牛料理': { zh: '牛肉料理', group: '肉類' },
-  '豚料理': { zh: '豬肉料理', group: '肉類' },
-  '肉料理': { zh: '肉類料理', group: '肉類' },
-  'ホルモン': { zh: '內臟燒烤', group: '肉類' },
-  'もつ焼き': { zh: '烤內臟', group: '肉類' },
-  'ジンギスカン': { zh: '成吉思汗烤肉', group: '肉類' },
-  '牛タン': { zh: '牛舌', group: '肉類' },
-  '豚しゃぶ': { zh: '豬肉涮涮鍋', group: '鍋物' },
-  'すき焼き': { zh: '壽喜燒', group: '鍋物' },
-  'しゃぶしゃぶ': { zh: '涮涮鍋', group: '鍋物' },
-  '鍋（その他）': { zh: '鍋物', group: '鍋物' },
-  '鍋': { zh: '鍋物', group: '鍋物' },
-  'おでん': { zh: '關東煮', group: '鍋物' },
-  'もつ鍋': { zh: '牛腸鍋', group: '鍋物' },
-  '水炊き': { zh: '水炊鍋', group: '鍋物' },
-  'ちゃんこ鍋': { zh: '相撲火鍋', group: '鍋物' },
-  'うどんすき': { zh: '烏龍麵鍋', group: '鍋物' },
-  'ちりとり鍋': { zh: '平底鐵鍋', group: '鍋物' },
-  'うなぎ': { zh: '鰻魚', group: '海鮮' },
-  'どじょう': { zh: '泥鰍', group: '海鮮' },
-  '魚介料理・海鮮料理': { zh: '海鮮料理', group: '海鮮' },
-  '海鮮': { zh: '海鮮', group: '海鮮' },
-  '天ぷら': { zh: '天婦羅', group: '海鮮' },
-  '海鮮丼': { zh: '海鮮丼', group: '海鮮' },
-  'かに': { zh: '螃蟹', group: '海鮮' },
-  'ふぐ': { zh: '河豚', group: '海鮮' },
-  '日本料理': { zh: '日本料理', group: '和食' },
-  '懐石・会席料理': { zh: '懷石料理', group: '和食' },
-  '割烹・小料理': { zh: '割烹/小料理', group: '和食' },
-  '郷土料理（その他）': { zh: '鄉土料理', group: '和食' },
-  '郷土料理': { zh: '鄉土料理', group: '和食' },
-  '創作料理': { zh: '創作料理', group: '和食' },
-  'ろばた焼き': { zh: '爐端燒', group: '和食' },
-  '天丼': { zh: '天婦羅丼', group: '和食' },
-  '天丼・天重': { zh: '天婦羅丼', group: '和食' },
-  '親子丼': { zh: '親子丼', group: '和食' },
-  '牛丼': { zh: '牛丼', group: '和食' },
-  '豚丼': { zh: '豬肉丼', group: '和食' },
-  'カツ丼': { zh: '豬排丼', group: '和食' },
-  '丼もの（その他）': { zh: '其他丼飯', group: '和食' },
-  '定食・食堂': { zh: '定食/食堂', group: '和食' },
-  '弁当': { zh: '便當', group: '輕食/小吃' },
-  'おにぎり': { zh: '飯糰', group: '輕食/小吃' },
-  'フレンチ': { zh: '法式料理', group: '異國料理' },
-  'フランス料理': { zh: '法式料理', group: '異國料理' },
-  'イタリアン': { zh: '義式料理', group: '異國料理' },
-  'イタリア料理': { zh: '義式料理', group: '異國料理' },
-  '中華料理': { zh: '中華料理', group: '異國料理' },
-  'スペイン料理': { zh: '西班牙料理', group: '異國料理' },
-  '韓国料理': { zh: '韓式料理', group: '異國料理' },
-  'タイ料理': { zh: '泰式料理', group: '異國料理' },
-  'インド料理': { zh: '印度料理', group: '異國料理' },
-  'ヨーロッパ料理': { zh: '歐洲料理', group: '異國料理' },
-  'ベトナム料理': { zh: '越南料理', group: '異國料理' },
-  'ネパール料理': { zh: '尼泊爾料理', group: '異國料理' },
-  'ロシア料理': { zh: '俄羅斯料理', group: '異國料理' },
-  'トルコ料理': { zh: '土耳其料理', group: '異國料理' },
-  'メキシコ料理': { zh: '墨西哥料理', group: '異國料理' },
-  'ブラジル料理': { zh: '巴西料理', group: '異國料理' },
-  '台湾料理': { zh: '台灣料理', group: '異國料理' },
-  '洋食': { zh: '洋食', group: '異國料理' },
-  'イノベーティブ': { zh: '創新料理', group: '異國料理' },
-  '冷麺': { zh: '冷麵', group: '異國料理' },
-  'ハンバーガー': { zh: '漢堡', group: '輕食/小吃' },
-  'ピザ': { zh: '披薩', group: '輕食/小吃' },
-  'カレー': { zh: '咖哩', group: '輕食/小吃' },
-  'カレーライス': { zh: '咖哩飯', group: '輕食/小吃' },
-  'スープカレー': { zh: '湯咖哩', group: '輕食/小吃' },
-  'インドカレー': { zh: '印度咖哩', group: '輕食/小吃' },
-  'タイカレー': { zh: '泰式咖哩', group: '輕食/小吃' },
-  'オムライス': { zh: '蛋包飯', group: '輕食/小吃' },
-  'ハヤシライス': { zh: '紅酒燉牛肉飯', group: '輕食/小吃' },
-  '餃子': { zh: '餃子', group: '輕食/小吃' },
-  '肉まん・中華まん': { zh: '肉包/包子', group: '輕食/小吃' },
-  '飲茶・点心': { zh: '飲茶/點心', group: '輕食/小吃' },
-  'お好み焼き': { zh: '大阪燒', group: '輕食/小吃' },
-  'もんじゃ焼き': { zh: '文字燒', group: '輕食/小吃' },
-  'たこ焼き': { zh: '章魚燒', group: '輕食/小吃' },
-  'パン': { zh: '麵包', group: '輕食/小吃' },
-  'サンドイッチ': { zh: '三明治', group: '輕食/小吃' },
-  'ベーグル': { zh: '貝果', group: '輕食/小吃' },
-  'ファミレス': { zh: '家庭餐廳', group: '輕食/小吃' },
-  'ファストフード': { zh: '速食', group: '輕食/小吃' },
-  'カフェ': { zh: '咖啡廳', group: '甜點/咖啡' },
-  '喫茶店': { zh: '喫茶店', group: '甜點/咖啡' },
-  'スイーツ（その他）': { zh: '甜點', group: '甜點/咖啡' },
-  'スイーツ': { zh: '甜點', group: '甜點/咖啡' },
-  'ケーキ': { zh: '蛋糕', group: '甜點/咖啡' },
-  '和菓子': { zh: '和菓子', group: '甜點/咖啡' },
-  '洋菓子': { zh: '西式甜點', group: '甜點/咖啡' },
-  'かき氷': { zh: '刨冰', group: '甜點/咖啡' },
-  'パフェ': { zh: '百匯', group: '甜點/咖啡' },
-  'チョコレート': { zh: '巧克力', group: '甜點/咖啡' },
-  'パンケーキ': { zh: '鬆餅', group: '甜點/咖啡' },
-  'クレープ': { zh: '可麗餅', group: '甜點/咖啡' },
-  'ジェラート・アイスクリーム': { zh: '冰淇淋', group: '甜點/咖啡' },
-  'アイスクリーム': { zh: '冰淇淋', group: '甜點/咖啡' },
-  'ソフトクリーム': { zh: '霜淇淋', group: '甜點/咖啡' },
-  'プリン': { zh: '布丁', group: '甜點/咖啡' },
-  'マカロン': { zh: '馬卡龍', group: '甜點/咖啡' },
-  'ドーナツ': { zh: '甜甜圈', group: '甜點/咖啡' },
-  'タピオカ': { zh: '珍珠奶茶', group: '甜點/咖啡' },
-  '居酒屋': { zh: '居酒屋', group: '酒吧/居酒屋' },
-  'ビストロ': { zh: '餐酒館', group: '酒吧/居酒屋' },
-  'ワインバー': { zh: '葡萄酒吧', group: '酒吧/居酒屋' },
-  'バー': { zh: '酒吧', group: '酒吧/居酒屋' },
-  'ダイニングバー': { zh: '餐酒館', group: '酒吧/居酒屋' },
-  'ビアバー': { zh: '啤酒吧', group: '酒吧/居酒屋' },
-  'バル': { zh: '酒吧/小酒館', group: '酒吧/居酒屋' },
-  'バル・バール': { zh: '酒吧/小酒館', group: '酒吧/居酒屋' },
-  '立ち飲み居酒屋・バー': { zh: '立吞居酒屋', group: '酒吧/居酒屋' },
-  'ビアガーデン': { zh: '啤酒花園', group: '酒吧/居酒屋' },
-  'ビアホール・ビアレストラン': { zh: '啤酒餐廳', group: '酒吧/居酒屋' },
-  'スポーツバー': { zh: '運動酒吧', group: '酒吧/居酒屋' },
-  '日本酒バー': { zh: '日本酒吧', group: '酒吧/居酒屋' },
-  '焼酎バー': { zh: '燒酎吧', group: '酒吧/居酒屋' },
-  'レストラン（その他）': { zh: '其他餐廳', group: '其他' },
-  'レストラン': { zh: '餐廳', group: '其他' },
-  '旅館': { zh: '旅館', group: '其他' },
-  'オーベルジュ': { zh: '住宿餐廳', group: '其他' },
-  '屋形船・クルージング': { zh: '屋形船/遊船', group: '其他' },
-  'バイキング': { zh: '自助餐', group: '其他' },
-};
-
-const getCuisineInfo = (cuisine: string) => {
-  if (cuisine === 'UNKNOWN_OTHER') return { zh: '其他未分類', group: '其他' };
-  return cuisineTranslation[cuisine] || { zh: cuisine, group: '其他' };
-};
-
-const groupOrder = ['麵類', '鍋物', '肉類', '海鮮', '和食', '異國料理', '輕食/小吃', '甜點/咖啡', '酒吧/居酒屋', '其他'];
-
-const dayMap: Record<string, string> = {
-  '月': '一',
-  '火': '二',
-  '水': '三',
-  '木': '四',
-  '金': '五',
-  '土': '六',
-  '日': '日',
-  '祝': '例假日'
-};
-
-function BaseLayerTracker({ onBaseLayerChange }: { onBaseLayerChange: (name: string) => void }) {
-  useMapEvents({
-    baselayerchange: (e) => {
-      onBaseLayerChange(e.name);
-    }
-  });
-  return null;
-}
-
-function getMarkerColor(score: number): string {
-  if (score >= 4.00) return '#a855f7'; // Tailwind purple-500
-  return '#fb923c'; // Tailwind orange-400
-}
-
-function getMarkerFillColor(score: number, userData?: UserRestaurantData): string {
-  if (userData?.visited) return '#cbd5e1'; // Light Slate
-  if (userData?.favorite) return '#fbcfe8'; // Light Pink
-  if (userData?.wantToGo) return '#bfdbfe'; // Light Blue
-  if (score >= 4.00) return '#d8b4fe'; // Light Purple (purple-300)
-  return '#fdba74'; // Light Orange
-}
-
-function getCuisineIcon(cuisine: string, size: number = 16) {
-  const firstCuisine = cuisine.split(/[、・\s]/)[0];
-  if (firstCuisine.includes('寿司') || firstCuisine.includes('うなぎ') || firstCuisine.includes('海鮮') || firstCuisine.includes('ふぐ') || firstCuisine.includes('かに')) {
-    return <Fish size={size} />;
-  }
-  if (firstCuisine.includes('日本料理') || firstCuisine.includes('割烹') || firstCuisine.includes('郷土料理') || firstCuisine.includes('ろばた焼き') || firstCuisine.includes('和食') || firstCuisine.includes('食堂')) {
-    return <UtensilsCrossed size={size} />;
-  }
-  if (firstCuisine.includes('イタリアン') || firstCuisine.includes('ピザ') || firstCuisine.includes('パスタ')) {
-    return <Pizza size={size} />;
-  }
-  if (firstCuisine.includes('フレンチ') || firstCuisine.includes('ビストロ') || firstCuisine.includes('スペイン料理') || firstCuisine.includes('ペルー料理') || firstCuisine.includes('洋食') || firstCuisine.includes('レストラン')) {
-    return <Wine size={size} />;
-  }
-  if (firstCuisine.includes('中華料理') || firstCuisine.includes('四川料理') || firstCuisine.includes('飲茶')) {
-    return <Flame size={size} />;
-  }
-  if (firstCuisine.includes('天ぷら') || firstCuisine.includes('串揚げ')) {
-    return <Shrimp size={size} />;
-  }
-  if (firstCuisine.includes('イノベーティブ') || firstCuisine.includes('創作料理') || firstCuisine.includes('アジア') || firstCuisine.includes('無国籍')) {
-    return <Sparkles size={size} />;
-  }
-  if (firstCuisine.includes('焼肉') || firstCuisine.includes('ホルモン') || firstCuisine.includes('ステーキ') || firstCuisine.includes('牛料理') || firstCuisine.includes('鉄板焼き') || firstCuisine.includes('もつ焼き') || firstCuisine.includes('ジンギスカン') || firstCuisine.includes('しゃぶしゃぶ') || firstCuisine.includes('ジビエ料理') || firstCuisine.includes('肉')) {
-    return <Beef size={size} />;
-  }
-  if (firstCuisine.includes('焼き鳥') || firstCuisine.includes('鳥料理') || firstCuisine.includes('とんかつ')) {
-    return <Drumstick size={size} />;
-  }
-  if (firstCuisine.includes('ラーメン') || firstCuisine.includes('そば') || firstCuisine.includes('カレー') || firstCuisine.includes('うどん') || firstCuisine.includes('つけ麺') || firstCuisine.includes('担々麺') || firstCuisine.includes('スープカレー') || firstCuisine.includes('インド料理') || firstCuisine.includes('インドカレー') || firstCuisine.includes('スリランカ料理')) {
-    return <Soup size={size} />;
-  }
-  if (firstCuisine.includes('ケーキ') || firstCuisine.includes('スイーツ') || firstCuisine.includes('洋菓子') || firstCuisine.includes('和菓子') || firstCuisine.includes('甘味処') || firstCuisine.includes('たい焼き') || firstCuisine.includes('バームクーヘン') || firstCuisine.includes('チョコレート')) {
-    return <Cake size={size} />;
-  }
-  if (firstCuisine.includes('カフェ') || firstCuisine.includes('喫茶店')) {
-    return <Coffee size={size} />;
-  }
-  if (firstCuisine.includes('ジェラート') || firstCuisine.includes('かき氷') || firstCuisine.includes('フルーツパーラー') || firstCuisine.includes('クレープ')) {
-    return <IceCream size={size} />;
-  }
-  if (firstCuisine.includes('パン') || firstCuisine.includes('ベーグル') || firstCuisine.includes('ドーナツ')) {
-    return <Croissant size={size} />;
-  }
-  if (firstCuisine.includes('ハンバーガー') || firstCuisine.includes('タコス')) {
-    return <Sandwich size={size} />;
-  }
-  if (firstCuisine.includes('居酒屋') || firstCuisine.includes('バー') || firstCuisine.includes('屋形船')) {
-    return <Beer size={size} />;
-  }
-  return <Utensils size={size} />;
-}
-
-const iconCache = new Map<string, L.DivIcon>();
-
-function createCustomIcon(cuisine: string, score: number, userData?: UserRestaurantData) {
-  const cacheKey = `${cuisine}-${score}-${userData?.visited}-${userData?.favorite}-${userData?.wantToGo}`;
-  if (iconCache.has(cacheKey)) {
-    return iconCache.get(cacheKey)!;
-  }
-
-  const baseBgColor = getMarkerColor(score);
-  const size = 24;
-  const iconSize = 14;
-  
-  let iconHtml = '';
-
-  if (userData?.favorite) {
-    // Diamond shape for favorite
-    iconHtml = renderToString(
-      <div 
-        className="hover:scale-125 transition-all duration-200"
-        style={{ 
-          background: 'linear-gradient(135deg, #f43f5e, #e11d48, #9f1239)',
-          width: `${size}px`,
-          height: `${size}px`,
-          border: `2px solid white`,
-          boxShadow: '0 0 10px 3px rgba(225, 29, 72, 0.6), inset 0 0 4px rgba(255,255,255,0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'white',
-          transform: 'rotate(45deg)',
-          borderRadius: '4px',
-        }}
-      >
-        <div style={{ transform: 'rotate(-45deg)', display: 'flex' }}>
-          <Heart size={iconSize} fill="currentColor" />
-        </div>
-      </div>
-    );
-  } else if (userData?.wantToGo) {
-    // Square shape for wantToGo
-    iconHtml = renderToString(
-      <div 
-        className="hover:scale-125 transition-all duration-200"
-        style={{ 
-          background: 'linear-gradient(135deg, #3b82f6, #2563eb, #1d4ed8)',
-          width: `${size}px`,
-          height: `${size}px`,
-          border: `2px solid white`,
-          boxShadow: '0 0 10px 3px rgba(59, 130, 246, 0.6), inset 0 0 4px rgba(255,255,255,0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'white',
-          borderRadius: '6px',
-        }}
-      >
-        <Bookmark size={iconSize} fill="currentColor" />
-      </div>
-    );
-  } else {
-    // Circle shape for normal or visited
-    const borderColor = userData?.visited ? 'black' : 'white';
-    iconHtml = renderToString(
-      <div 
-        className="hover:scale-125 hover:shadow-lg hover:border-[3px] transition-all duration-200"
-        style={{ 
-          backgroundColor: baseBgColor,
-          width: `${size}px`,
-          height: `${size}px`,
-          border: `2px solid ${borderColor}`,
-          boxShadow: '0 2px 4px -1px rgba(0, 0, 0, 0.2)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'white',
-          borderRadius: '50%',
-        }}
-      >
-        {getCuisineIcon(cuisine, iconSize)}
-      </div>
-    );
-  }
-
-  const icon = L.divIcon({
-    html: iconHtml,
-    className: 'custom-leaflet-icon',
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2],
-    tooltipAnchor: [0, -(size / 2)],
-  });
-
-  iconCache.set(cacheKey, icon);
-  return icon;
-}
+import { type UserRestaurantData } from './types';
+import { cuisineTranslation, groupOrder, dayMap, WARD_PROSPERITY_ORDER } from './constants';
+import { cn, getCuisineInfo, getAwards, getMarkerColor, getMarkerFillColor, getCuisineIcon, createCustomIcon, isClosedOnDay, calculateDistance, getDistanceText } from './utils';
+import { CustomTooltip } from './components/CustomTooltip';
+import { RestaurantCard } from './components/RestaurantCard';
+import { Sidebar } from './components/Sidebar';
 
 // Map Controller to handle flying to a specific location
 function MapController({ center, zoom }: { center: [number, number] | null, zoom: number }) {
@@ -383,27 +38,13 @@ function MapController({ center, zoom }: { center: [number, number] | null, zoom
   return null;
 }
 
-function isClosedOnDay(businessHours: string | undefined, day: string): boolean {
-  if (!businessHours) return false;
-  
-  const lines = businessHours.split('\n');
-  for (const line of lines) {
-    if (line.includes('休')) {
-      let dayRegex;
-      if (day === '日') {
-        dayRegex = /(?<!曜|祝|休|明|翌)日/;
-      } else if (day === '祝') {
-        dayRegex = /祝/;
-      } else {
-        dayRegex = new RegExp(day);
-      }
-      
-      if (dayRegex.test(line)) {
-        return true;
-      }
+function BaseLayerTracker({ onBaseLayerChange }: { onBaseLayerChange: (name: string) => void }) {
+  useMapEvents({
+    baselayerchange: (e) => {
+      onBaseLayerChange(e.name);
     }
-  }
-  return false;
+  });
+  return null;
 }
 
 export default function App() {
@@ -414,6 +55,7 @@ export default function App() {
   const [minScore, setMinScore] = useState<number>(3.5);
   const [maxScore, setMaxScore] = useState<number>(5.0);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [selectedWards, setSelectedWards] = useState<string[]>([]);
   const [requireAward, setRequireAward] = useState(false);
   const [requireHyakumeiten, setRequireHyakumeiten] = useState(false);
   const [hoveredRestaurant, setHoveredRestaurant] = useState<Restaurant | null>(null);
@@ -424,7 +66,13 @@ export default function App() {
   const [activeBaseLayer, setActiveBaseLayer] = useState('詳細地圖 (OSM)');
   const [isListOpen, setIsListOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState<{status: 'success' | 'error', message: string} | null>(null);
+  const [scraperStatus, setScraperStatus] = useState<{status: 'running' | 'idle' | 'error', progress: number, message: string} | null>(null);
   const [viewMode, setViewMode] = useState<'all' | 'visited' | 'favorite' | 'wantToGo'>('all');
+
+  const [isCuisineOpen, setIsCuisineOpen] = useState(true);
+  const [isLocationOpen, setIsLocationOpen] = useState(false);
+  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
+  const [isDaysOpen, setIsDaysOpen] = useState(true);
 
   const tabFiltersRef = React.useRef<Record<string, any>>({
     all: {
@@ -453,16 +101,32 @@ export default function App() {
   const [isLoadingData, setIsLoadingData] = useState(true);
 
   useEffect(() => {
+    const fetchWithCache = async (collectionName: string) => {
+      const colRef = collection(db, collectionName);
+      try {
+        const snapshot = await getDocsFromCache(colRef);
+        if (snapshot.empty) {
+          console.log(`Cache empty for ${collectionName}, fetching from server...`);
+          return await getDocsFromServer(colRef);
+        }
+        console.log(`Loaded ${collectionName} from cache`);
+        return snapshot;
+      } catch (e) {
+        console.log(`Failed to load ${collectionName} from cache, fetching from server...`);
+        return await getDocsFromServer(colRef);
+      }
+    };
+
     Promise.all([
-      getDocs(collection(db, 'restaurants')).then(snapshot => snapshot.docs.map(doc => doc.data() as Restaurant)),
-      getDocs(collection(db, 'tokyoLines')).then(snapshot => ({
+      fetchWithCache('restaurants').then(snapshot => snapshot.docs.map(doc => doc.data() as Restaurant)),
+      fetchWithCache('tokyoLines').then(snapshot => ({
         type: 'FeatureCollection',
         features: snapshot.docs.map(doc => {
           const data = doc.data();
           return { ...data, geometry: JSON.parse(data.geometry) };
         })
       })),
-      getDocs(collection(db, 'tokyoStations')).then(snapshot => ({
+      fetchWithCache('tokyoStations').then(snapshot => ({
         type: 'FeatureCollection',
         features: snapshot.docs.map(doc => {
           const data = doc.data();
@@ -482,11 +146,50 @@ export default function App() {
   const [sortBy, setSortBy] = useState<'score-desc' | 'score-asc'>('score-desc');
   const itemsPerPage = 50;
 
+  const availableWards = useMemo(() => {
+    const WARD_PROSPERITY_ORDER = [
+      '港区', '新宿区', '渋谷区', '中央区', '千代田区', '豊島区', '台東区', '目黒区', '品川区', '世田谷区',
+      '中野区', '杉並区', '江東区', '墨田区', '大田区', '北区', '荒川区', '板橋区', '練馬区', '足立区',
+      '葛飾区', '江戸川区', '武蔵野市', '三鷹市', '調布市', '町田市', '八王子市', '立川市'
+    ];
+    
+    const wards = new Set<string>();
+    tokyoRestaurants.forEach(r => {
+      const ward = WARD_PROSPERITY_ORDER.find(w => r.address.includes(w));
+      if (ward) wards.add(ward);
+    });
+    
+    return Array.from(wards).sort((a, b) => {
+      const indexA = WARD_PROSPERITY_ORDER.indexOf(a);
+      const indexB = WARD_PROSPERITY_ORDER.indexOf(b);
+      
+      if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+      if (indexA !== -1) return -1;
+      if (indexB !== -1) return 1;
+      
+      const aIsKu = a.endsWith('区');
+      const bIsKu = b.endsWith('区');
+      if (aIsKu && !bIsKu) return -1;
+      if (!aIsKu && bIsKu) return 1;
+      return a.localeCompare(b, 'ja');
+    });
+  }, [tokyoRestaurants]);
+
+  const cuisineCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    tokyoRestaurants.forEach(r => {
+      r.cuisine.split('、').forEach(c => {
+        let trimmed = c.trim();
+        if (trimmed === 'カレーうどん') trimmed = 'うどん';
+        counts[trimmed] = (counts[trimmed] || 0) + 1;
+      });
+    });
+    return counts;
+  }, [tokyoRestaurants]);
+
   const groupedCuisines = useMemo(() => {
     const cuisines = new Set<string>();
-    tokyoRestaurants.forEach(r => {
-      r.cuisine.split('、').forEach(c => cuisines.add(c.trim()));
-    });
+    Object.keys(cuisineCounts).forEach(c => cuisines.add(c));
     
     const groups: Record<string, string[]> = {};
     Array.from(cuisines).forEach(c => {
@@ -506,23 +209,19 @@ export default function App() {
       }
     });
     
-    const priorityCuisines = [
-      'ラーメン', 'つけ麺', 'すき焼き', '焼肉', '牛料理', 'とんかつ', '肉料理', '天ぷら', '親子丼', 'カレー', 'カフェ'
-    ];
-
     Object.keys(groups).forEach(group => {
       groups[group].sort((a, b) => {
-        const indexA = priorityCuisines.indexOf(a);
-        const indexB = priorityCuisines.indexOf(b);
-        if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-        if (indexA !== -1) return -1;
-        if (indexB !== -1) return 1;
+        const countA = cuisineCounts[a] || 0;
+        const countB = cuisineCounts[b] || 0;
+        if (countA !== countB) {
+          return countB - countA;
+        }
         return a.localeCompare(b, 'ja');
       });
     });
 
     return groups;
-  }, [tokyoRestaurants]);
+  }, [cuisineCounts]);
 
   const uniqueCuisines = useMemo(() => {
     return Object.values(groupedCuisines).flat();
@@ -731,13 +430,28 @@ export default function App() {
       if (viewMode === 'wantToGo' && !userRestaurantData[r.id]?.wantToGo) return false;
 
       // 1. Search Query
-      const matchesSearch = r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                            r.cuisine.toLowerCase().includes(searchQuery.toLowerCase());
+      const query = searchQuery.toLowerCase();
+      const matchesSearch = r.name.toLowerCase().includes(query);
       if (!matchesSearch) return false;
+
+      // 1.5 Ward Filter
+      if (selectedWards.length > 0) {
+        const WARD_PROSPERITY_ORDER = [
+          '港区', '新宿区', '渋谷区', '中央区', '千代田区', '豊島区', '台東区', '目黒区', '品川区', '世田谷区',
+          '中野区', '杉並区', '江東区', '墨田区', '大田区', '北区', '荒川区', '板橋区', '練馬区', '足立区',
+          '葛飾区', '江戸川区', '武蔵野市', '三鷹市', '調布市', '町田市', '八王子市', '立川市'
+        ];
+        const ward = WARD_PROSPERITY_ORDER.find(w => r.address.includes(w)) || '其他';
+        if (!selectedWards.includes(ward)) return false;
+      }
 
       // 2. Cuisine Filter
       if (selectedCuisines.length > 0) {
-        const restaurantCuisines = r.cuisine.split('、').map(c => c.trim());
+        const restaurantCuisines = r.cuisine.split('、').map(c => {
+          let trimmed = c.trim();
+          if (trimmed === 'カレーうどん') trimmed = 'うどん';
+          return trimmed;
+        });
         const hasMatch = restaurantCuisines.some(c => {
           if (selectedCuisines.includes('UNKNOWN_OTHER') && !cuisineTranslation[c]) {
             return true;
@@ -753,15 +467,25 @@ export default function App() {
       // 3. Score Filter
       if (r.score < minScore || r.score > maxScore) return false;
 
-      // 4. Awards Filter
-      if (requireAward && (!r.awards || r.awards.length === 0)) return false;
-      
-      // 5. Hyakumeiten Filter
-      if (requireHyakumeiten && (!r.hyakumeiten || r.hyakumeiten.length === 0)) return false;
+      // 4. Awards & Hyakumeiten Filter (OR logic if both checked)
+      if (requireAward || requireHyakumeiten) {
+        const { awards, hyakumeiten } = getAwards(r);
+        const hasAward = awards.length > 0;
+        const hasHyakumeiten = hyakumeiten.length > 0;
+        
+        if (requireAward && requireHyakumeiten) {
+          if (!hasAward && !hasHyakumeiten) return false;
+        } else if (requireAward && !hasAward) {
+          return false;
+        } else if (requireHyakumeiten && !hasHyakumeiten) {
+          return false;
+        }
+      }
 
       // 6. Days Filter
       if (selectedDay) {
-        if (isClosedOnDay(r.businessHours, selectedDay)) {
+        const hours = r.storeInfo?.['営業時間'] || r.businessHours;
+        if (isClosedOnDay(hours, selectedDay)) {
           return false;
         }
       }
@@ -777,7 +501,7 @@ export default function App() {
     });
 
     return result;
-  }, [searchQuery, selectedCuisines, minScore, maxScore, requireAward, requireHyakumeiten, selectedDay, viewMode, userRestaurantData, sortBy, tokyoRestaurants]);
+  }, [searchQuery, selectedCuisines, selectedWards, minScore, maxScore, requireAward, requireHyakumeiten, selectedDay, viewMode, userRestaurantData, sortBy, tokyoRestaurants]);
 
   const totalPages = Math.ceil(filteredRestaurants.length / itemsPerPage);
   const paginatedRestaurants = filteredRestaurants.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -786,320 +510,57 @@ export default function App() {
     <div className="flex flex-col-reverse md:flex-row h-screen w-full bg-slate-50 font-sans overflow-hidden relative">
       
       {/* Sidebar (Filters) */}
-      <div className="w-full md:w-[400px] h-[45vh] md:h-full bg-white shadow-2xl flex flex-col z-30 relative shrink-0">
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-white">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-3">
-              <div className="bg-orange-500 p-2 rounded-lg">
-                <Utensils className="w-5 h-5 text-white" />
-              </div>
-              <h1 className="text-2xl font-bold text-slate-900">東京美食地圖</h1>
-            </div>
-            
-            <div className="flex items-center gap-2">
-              {user ? (
-                <div className="flex items-center gap-2">
-                  <img src={user.photoURL || ''} alt="avatar" className="w-8 h-8 rounded-full border border-slate-200" />
-                  <button onClick={logout} className="p-1.5 text-slate-500 hover:bg-slate-100 rounded-md" title="登出">
-                    <LogOut className="w-5 h-5" />
-                  </button>
-                </div>
-              ) : (
-                <button onClick={loginWithGoogle} className="flex items-center gap-1.5 bg-white border border-slate-200 text-slate-700 px-3 py-1.5 rounded-md text-sm font-bold hover:bg-slate-50 shadow-sm">
-                  <LogIn className="w-4 h-4" /> 登入
-                </button>
-              )}
-              <button 
-                onClick={() => setIsListOpen(!isListOpen)}
-                className="md:hidden flex items-center gap-1 bg-orange-100 text-orange-700 px-3 py-1.5 rounded-md font-bold text-sm"
-              >
-                {isListOpen ? '隱藏列表' : '顯示列表'} ({filteredRestaurants.length})
-              </button>
-            </div>
-
-          </div>
-          <p className="text-sm text-slate-500 mb-4">
-            精選 {tokyoRestaurants.length} 家 Tabelog 高分餐廳
-          </p>
-
-          {/* View Mode */}
-          {user && (
-            <div className="flex gap-2 mb-4 bg-slate-100 p-1 rounded-lg">
-              <button
-                onClick={() => handleViewModeChange('all')}
-                className={cn(
-                  "flex-1 py-1.5 text-sm font-bold rounded-md transition-colors",
-                  viewMode === 'all' ? "bg-blue-600 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
-                )}
-              >
-                全部餐廳
-              </button>
-              <button
-                onClick={() => handleViewModeChange('visited')}
-                className={cn(
-                  "flex-1 py-1.5 text-sm font-bold rounded-md transition-colors flex items-center justify-center gap-1",
-                  viewMode === 'visited' ? "bg-blue-600 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
-                )}
-              >
-                <CheckCircle2 className="w-4 h-4" /> 已吃過
-              </button>
-              <button
-                onClick={() => handleViewModeChange('favorite')}
-                className={cn(
-                  "flex-1 py-1.5 text-sm font-bold rounded-md transition-colors flex items-center justify-center gap-1",
-                  viewMode === 'favorite' ? "bg-pink-600 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
-                )}
-              >
-                <Heart className="w-4 h-4" fill={viewMode === 'favorite' ? 'currentColor' : 'none'} /> 喜愛
-              </button>
-              <button
-                onClick={() => handleViewModeChange('wantToGo')}
-                className={cn(
-                  "flex-1 py-1.5 text-sm font-bold rounded-md transition-colors flex items-center justify-center gap-1",
-                  viewMode === 'wantToGo' ? "bg-blue-600 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
-                )}
-              >
-                <Bookmark className="w-4 h-4" fill={viewMode === 'wantToGo' ? 'currentColor' : 'none'} /> 想去
-              </button>
-            </div>
-          )}
-
-          {/* Search */}
-          <div className="relative mb-4">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input 
-              type="text" 
-              placeholder="搜尋餐廳名稱、料理種類或行政區..."
-              className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-
-          {/* Filters */}
-          <div className="space-y-3">
-            {/* Cuisine Filter */}
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <p className="text-sm font-bold text-slate-700">料理種類 (可複選)</p>
-                <div className="flex items-center gap-2 relative">
-                  <label className="flex items-center gap-1 cursor-pointer text-xs font-medium text-slate-600 hover:text-slate-900">
-                    <input 
-                      type="checkbox" 
-                      className="w-3 h-3 rounded border-slate-300 text-orange-500 focus:ring-orange-500"
-                      checked={selectedCuisines.length === uniqueCuisines.length}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedCuisines([...uniqueCuisines]);
-                        } else {
-                          setSelectedCuisines([]);
-                        }
-                      }}
-                    />
-                    全勾
-                  </label>
-                  <button 
-                    onClick={() => setSelectedCuisines([])}
-                    className="text-xs font-medium text-slate-600 hover:text-slate-900"
-                  >
-                    全消
-                  </button>
-                  {user && viewMode === 'all' && (
-                    <div className="relative flex items-center gap-1">
-                      <button 
-                        onClick={savePreferences}
-                        className="text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 px-2 py-0.5 rounded border border-blue-100 transition-colors"
-                      >
-                        儲存
-                      </button>
-                      <button 
-                        onClick={loadPreferences}
-                        className="text-xs bg-slate-50 text-slate-600 hover:bg-slate-100 px-2 py-0.5 rounded border border-slate-200 transition-colors"
-                      >
-                        讀取
-                      </button>
-                      {saveStatus && (
-                        <div className={`absolute top-full right-0 mt-1 px-2 py-1 rounded text-[10px] font-bold whitespace-nowrap shadow-sm z-50 animate-fade-out ${saveStatus.status === 'success' ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-red-100 text-red-700 border border-red-200'}`}>
-                          {saveStatus.message}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-x-2 gap-y-3 max-h-[35vh] overflow-y-auto p-2 border border-slate-200 rounded-lg bg-white">
-                {groupOrder.map(group => {
-                  const cuisinesInGroup = groupedCuisines[group];
-                  if (!cuisinesInGroup || cuisinesInGroup.length === 0) return null;
-                  
-                  return (
-                    <div key={group} className="space-y-1.5">
-                      <div className="text-sm font-bold text-slate-600 border-b border-slate-200 pb-1 mb-1">{group}</div>
-                      <div className="flex flex-wrap gap-1">
-                        {cuisinesInGroup.map(cuisine => {
-                          const isSelected = selectedCuisines.includes(cuisine);
-                          const info = getCuisineInfo(cuisine);
-                          return (
-                            <button
-                              key={cuisine}
-                              onClick={() => {
-                                setSelectedCuisines(prev => 
-                                  prev.includes(cuisine) ? prev.filter(c => c !== cuisine) : [...prev, cuisine]
-                                );
-                              }}
-                              className={cn(
-                                "px-1.5 py-0.5 text-[13px] font-medium rounded transition-all border",
-                                isSelected 
-                                  ? "bg-orange-100 text-orange-700 border-orange-200" 
-                                  : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
-                              )}
-                            >
-                              {info.zh}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Days Filter */}
-            <div>
-              <p className="text-sm font-bold text-slate-700 mb-1.5">營業日篩選</p>
-              <div className="flex flex-wrap gap-1.5">
-                <button
-                  onClick={() => setSelectedDay(null)}
-                  className={cn(
-                    "px-2 py-1 rounded-md text-[13px] font-medium transition-colors border",
-                    selectedDay === null
-                      ? "bg-slate-700 text-white border-slate-800"
-                      : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
-                  )}
-                >
-                  清除
-                </button>
-                {['月', '火', '水', '木', '金', '土', '日', '祝'].map(day => (
-                  <button
-                    key={day}
-                    onClick={() => setSelectedDay(day)}
-                    className={cn(
-                      "px-1.5 py-1 rounded-md text-[13px] font-medium transition-colors border",
-                      selectedDay === day
-                        ? "bg-orange-500 text-white border-orange-600"
-                        : "bg-white text-slate-600 border-slate-200 hover:border-orange-300"
-                    )}
-                  >
-                    {dayMap[day]}{selectedDay === day ? ' 有開' : ''}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Rating & Awards Filter */}
-            <div>
-              <div className="flex justify-between items-center mb-1.5">
-                <p className="text-sm font-bold text-slate-700">評價篩選</p>
-                {user && viewMode === 'all' && (
-                  <div className="relative flex items-center gap-1">
-                    <button 
-                      onClick={savePreferences}
-                      className="text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 px-2 py-0.5 rounded border border-blue-100 transition-colors"
-                    >
-                      儲存
-                    </button>
-                    <button 
-                      onClick={loadPreferences}
-                      className="text-xs bg-slate-50 text-slate-600 hover:bg-slate-100 px-2 py-0.5 rounded border border-slate-200 transition-colors"
-                    >
-                      讀取
-                    </button>
-                  </div>
-                )}
-              </div>
-              <div className="space-y-3 bg-slate-50 p-3 rounded-lg border border-slate-100">
-                <div className="flex items-center gap-2 text-sm font-medium text-slate-600">
-                  <input 
-                    type="number" 
-                    step="0.01"
-                    min="0"
-                    max="5"
-                    className="w-20 px-2 py-1 rounded border border-slate-300 focus:ring-orange-500 focus:border-orange-500 text-sm"
-                    value={minScore}
-                    onChange={(e) => setMinScore(parseFloat(e.target.value) || 0)}
-                  />
-                  <span>~</span>
-                  <input 
-                    type="number" 
-                    step="0.01"
-                    min="0"
-                    max="5"
-                    className="w-20 px-2 py-1 rounded border border-slate-300 focus:ring-orange-500 focus:border-orange-500 text-sm"
-                    value={maxScore}
-                    onChange={(e) => setMaxScore(parseFloat(e.target.value) || 5)}
-                  />
-                </div>
-                
-                <div className="flex flex-wrap gap-4 pt-3 border-t border-slate-200">
-                  <label className="flex items-center gap-1.5 cursor-pointer group">
-                    <div className={cn(
-                      "w-4 h-4 rounded border flex items-center justify-center transition-colors",
-                      requireAward ? "bg-yellow-500 border-yellow-600" : "bg-white border-slate-300 group-hover:border-yellow-400"
-                    )}>
-                      {requireAward && <CheckCircle2 className="w-3 h-3 text-white" />}
-                    </div>
-                    <input 
-                      type="checkbox" 
-                      className="hidden"
-                      checked={requireAward}
-                      onChange={(e) => setRequireAward(e.target.checked)}
-                    />
-                    <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900">Tabelog Award</span>
-                  </label>
-
-                  <label className="flex items-center gap-1.5 cursor-pointer group">
-                    <div className={cn(
-                      "w-4 h-4 rounded border flex items-center justify-center transition-colors",
-                      requireHyakumeiten ? "bg-orange-500 border-orange-600" : "bg-white border-slate-300 group-hover:border-orange-400"
-                    )}>
-                      {requireHyakumeiten && <CheckCircle2 className="w-3 h-3 text-white" />}
-                    </div>
-                    <input 
-                      type="checkbox" 
-                      className="hidden"
-                      checked={requireHyakumeiten}
-                      onChange={(e) => setRequireHyakumeiten(e.target.checked)}
-                    />
-                    <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900">百名店</span>
-                  </label>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        {/* Toggle Button for List */}
-        <button 
-          onClick={() => setIsListOpen(!isListOpen)}
-          className="absolute right-0 translate-x-full top-1/2 -translate-y-1/2 z-30 bg-slate-900 py-6 px-2 rounded-r-xl shadow-xl border border-l-0 border-slate-800 hidden md:flex flex-col items-center justify-center hover:bg-slate-800 transition-colors group"
-        >
-          {isListOpen ? <ChevronLeft className="w-5 h-5 text-white mb-2 group-hover:-translate-x-0.5 transition-transform" /> : <ChevronRight className="w-5 h-5 text-white mb-2 group-hover:translate-x-0.5 transition-transform" />}
-          <span className="text-white text-xs font-bold tracking-widest" style={{ writingMode: 'vertical-rl' }}>
-            {isListOpen ? '隱藏餐廳列表' : '展開餐廳列表'}
-          </span>
-          <span className="text-slate-400 text-[10px] mt-2 font-mono">
-            {filteredRestaurants.length}
-          </span>
-        </button>
-      </div>
+      <Sidebar 
+        user={user}
+        loginWithGoogle={loginWithGoogle}
+        logout={logout}
+        tokyoRestaurantsLength={tokyoRestaurants.length}
+        filteredRestaurantsLength={filteredRestaurants.length}
+        isListOpen={isListOpen}
+        setIsListOpen={setIsListOpen}
+        viewMode={viewMode}
+        handleViewModeChange={handleViewModeChange}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        isCuisineOpen={isCuisineOpen}
+        setIsCuisineOpen={setIsCuisineOpen}
+        selectedCuisines={selectedCuisines}
+        setSelectedCuisines={setSelectedCuisines}
+        uniqueCuisines={uniqueCuisines}
+        savePreferences={savePreferences}
+        loadPreferences={loadPreferences}
+        saveStatus={saveStatus}
+        groupOrder={groupOrder}
+        groupedCuisines={groupedCuisines}
+        cuisineCounts={cuisineCounts}
+        isDaysOpen={isDaysOpen}
+        setIsDaysOpen={setIsDaysOpen}
+        selectedDay={selectedDay}
+        setSelectedDay={setSelectedDay}
+        dayMap={dayMap}
+        isLocationOpen={isLocationOpen}
+        setIsLocationOpen={setIsLocationOpen}
+        selectedWards={selectedWards}
+        setSelectedWards={setSelectedWards}
+        availableWards={availableWards}
+        isAdvancedOpen={isAdvancedOpen}
+        setIsAdvancedOpen={setIsAdvancedOpen}
+        minScore={minScore}
+        setMinScore={setMinScore}
+        maxScore={maxScore}
+        setMaxScore={setMaxScore}
+        requireAward={requireAward}
+        setRequireAward={setRequireAward}
+        requireHyakumeiten={requireHyakumeiten}
+        setRequireHyakumeiten={setRequireHyakumeiten}
+      />
 
       {/* Restaurant List Panel */}
       <div className={cn(
         "absolute left-0 md:left-[400px] bottom-[45vh] md:bottom-0 w-full md:w-[400px] h-[55vh] md:h-full bg-white shadow-xl z-20 flex flex-col shrink-0 transition-transform duration-300 ease-in-out",
         isListOpen ? "translate-y-0 md:translate-x-0" : "translate-y-full md:-translate-x-full"
       )}>
-        <div className="p-4 border-b border-slate-100 bg-white flex flex-col gap-3 shrink-0">
+        <div className="p-4 md:pl-10 border-b border-slate-100 bg-white flex flex-col gap-3 shrink-0">
           <div className="flex justify-between items-center">
             <h2 className="text-base font-bold text-slate-800">餐廳列表 ({filteredRestaurants.length})</h2>
             <button onClick={() => setIsListOpen(false)} className="p-1 hover:bg-slate-100 rounded">
@@ -1139,183 +600,19 @@ export default function App() {
             )}
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/50">
+        <div className="flex-1 overflow-y-auto p-4 md:pl-10 space-y-3 bg-slate-50/50">
           {paginatedRestaurants.map((restaurant) => (
-            <div 
+            <RestaurantCard 
               key={restaurant.id}
-              className={cn(
-                "p-4 rounded-xl border transition-all cursor-pointer group hover:shadow-md",
-                hoveredRestaurant?.id === restaurant.id 
-                  ? "border-orange-400 bg-orange-50/50" 
-                  : "border-slate-100 bg-white hover:border-orange-200"
-              )}
-              onMouseEnter={() => setHoveredRestaurant(restaurant)}
-              onMouseLeave={() => setHoveredRestaurant(null)}
-              onClick={() => {
-                if (restaurant.lat !== 0 && restaurant.lng !== 0) {
-                  setMapCenter([restaurant.lat, restaurant.lng]);
-                }
-              }}
-            >
-              <div className="flex flex-col gap-1.5">
-                {/* Row 1: Name, Score, Buttons */}
-                <div className="flex justify-between items-start gap-2">
-                  <h3 className="font-bold text-sm text-slate-900 group-hover:text-orange-600 transition-colors leading-tight flex-1">
-                    {restaurant.name}
-                    {restaurant.lat === 0 && <span className="ml-1 text-[10px] font-normal text-slate-400 bg-slate-100 px-1 rounded">住所非公開</span>}
-                  </h3>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <div className="flex items-center gap-0.5 bg-slate-100 px-1.5 py-0.5 rounded text-sm font-bold text-slate-700">
-                      <Star className="w-3 h-3 text-orange-500 fill-orange-500" />
-                      {restaurant.score.toFixed(2)}
-                    </div>
-                    {user && (
-                      <div className="flex items-center gap-1">
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); toggleStatus(restaurant.id, 'visited'); }}
-                          className={`flex items-center justify-center p-1 rounded transition-colors ${userRestaurantData[restaurant.id]?.visited ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                          title={userRestaurantData[restaurant.id]?.visited ? '已吃過' : '標記已吃'}
-                        >
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          {!userRestaurantData[restaurant.id]?.visited && <span className="text-[10px] ml-0.5 font-bold">已吃</span>}
-                        </button>
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); toggleStatus(restaurant.id, 'favorite'); }}
-                          className={`flex items-center justify-center p-1 rounded transition-colors ${userRestaurantData[restaurant.id]?.favorite ? 'bg-pink-100 text-pink-700 border border-pink-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-transparent'}`}
-                          title={userRestaurantData[restaurant.id]?.favorite ? '已喜愛' : '標記喜愛'}
-                        >
-                          <Heart className="w-3.5 h-3.5" fill={userRestaurantData[restaurant.id]?.favorite ? 'currentColor' : 'none'} />
-                        </button>
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); toggleStatus(restaurant.id, 'wantToGo'); }}
-                          className={`flex items-center justify-center p-1 rounded transition-colors ${userRestaurantData[restaurant.id]?.wantToGo ? 'bg-blue-100 text-blue-700 border border-blue-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-transparent'}`}
-                          title={userRestaurantData[restaurant.id]?.wantToGo ? '想去' : '標記想去'}
-                        >
-                          <Bookmark className="w-3.5 h-3.5" fill={userRestaurantData[restaurant.id]?.wantToGo ? 'currentColor' : 'none'} />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Row 2: Cuisine, Awards */}
-                <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                  <span className="flex items-center gap-1">
-                    <Utensils className="w-3 h-3" />
-                    {restaurant.cuisine.split('、').map(c => getCuisineInfo(c.trim()).zh).join('、')}
-                  </span>
-                  {viewMode === 'all' && (restaurant.awards?.length > 0 || restaurant.hyakumeiten?.length > 0) && (
-                    <div className="flex flex-wrap gap-1">
-                      {restaurant.awards?.slice(0, 1).map((award, idx) => (
-                        <span key={idx} className="inline-flex items-center gap-0.5 px-1 rounded bg-yellow-100 text-yellow-800 text-[10px] font-bold border border-yellow-200">
-                          <Trophy className="w-2.5 h-2.5" />
-                          {award.replace('The Tabelog Award ', '')}
-                        </span>
-                      ))}
-                      {restaurant.hyakumeiten?.slice(0, 1).map((hm, idx) => (
-                        <span key={idx} className="inline-flex items-center gap-0.5 px-1 rounded bg-orange-100 text-orange-800 text-[10px] font-bold border border-orange-200">
-                          <Medal className="w-2.5 h-2.5" />
-                          {hm.replace('食べログ ', '')}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Row 2.5: Store Info (Reservable, Seats, Smoking, Website) */}
-                {viewMode === 'all' && restaurant.storeInfo && (
-                  <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500 mt-0.5">
-                    {/* Reservable */}
-                    {restaurant.storeInfo['予約可否'] && (
-                      <span className="flex items-center gap-0.5 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">
-                        <CalendarCheck className="w-3 h-3 text-slate-400" />
-                        {restaurant.storeInfo['予約可否'].includes('完全予約制') ? '完全預約制' : 
-                         restaurant.storeInfo['予約可否'].includes('予約不可') ? '不可預約' : 
-                         restaurant.storeInfo['予約可否'].includes('予約可') ? '可預約' : '預約資訊'}
-                      </span>
-                    )}
-                    
-                    {/* Seats */}
-                    {restaurant.storeInfo['席数'] && restaurant.storeInfo['席数'].match(/(\d+)\s*席/) && (
-                      <span className="flex items-center gap-0.5 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">
-                        <Users className="w-3 h-3 text-slate-400" />
-                        {restaurant.storeInfo['席数'].match(/(\d+)\s*席/)[1]}席
-                      </span>
-                    )}
-
-                    {/* Smoking */}
-                    {restaurant.storeInfo['禁煙・喫煙'] && (
-                      <span className="flex items-center gap-0.5 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">
-                        {restaurant.storeInfo['禁煙・喫煙'].includes('禁煙') ? (
-                          <><CigaretteOff className="w-3 h-3 text-slate-400" /> 禁菸</>
-                        ) : restaurant.storeInfo['禁煙・喫煙'].includes('喫煙可') ? (
-                          <><Cigarette className="w-3 h-3 text-slate-400" /> 可吸菸</>
-                        ) : (
-                          <><Cigarette className="w-3 h-3 text-slate-400" /> 分煙</>
-                        )}
-                      </span>
-                    )}
-                  </div>
-                )}
-
-                {/* Row 3: Photos + Links */}
-                {viewMode === 'all' && restaurant.photos && restaurant.photos.length > 0 && (
-                  <div className="flex gap-1.5 mt-0.5 h-16">
-                    <div className="flex-1 flex gap-1.5">
-                      {restaurant.photos.slice(0, 2).map((photo, idx) => (
-                        <div key={idx} className="relative flex-1 rounded overflow-hidden bg-slate-100 border border-slate-200">
-                          <img 
-                            src={photo} 
-                            alt={`${restaurant.name} photo ${idx + 1}`} 
-                            className="w-full h-full object-cover"
-                            referrerPolicy="no-referrer"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                    <div className="w-[76px] shrink-0 flex flex-col gap-1">
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          window.open(restaurant.url, '_blank', 'noopener,noreferrer');
-                        }}
-                        className="flex-1 flex items-center justify-center gap-1 bg-orange-50 hover:bg-orange-100 text-orange-600 rounded border border-orange-100 transition-colors"
-                        title="在 Tabelog 上查看"
-                      >
-                        <ExternalLink className="w-3 h-3" />
-                        <span className="text-xs font-bold">Tabelog</span>
-                      </button>
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const gmapsUrl = restaurant.googleMapUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(restaurant.name + ' ' + restaurant.address)}`;
-                          window.open(gmapsUrl, '_blank', 'noopener,noreferrer');
-                        }}
-                        className="flex-1 flex items-center justify-center gap-1 bg-green-50 hover:bg-green-100 text-green-600 rounded border border-green-100 transition-colors"
-                        title="在 Google Maps 上查看"
-                      >
-                        <MapPin className="w-3 h-3" />
-                        <span className="text-xs font-bold">地圖</span>
-                      </button>
-                      {restaurant.storeInfo && (restaurant.storeInfo['ホームページ'] || restaurant.storeInfo['お店のホームページ']) && (
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const url = restaurant.storeInfo['ホームページ'] || restaurant.storeInfo['お店のホームページ'];
-                            window.open(url, '_blank', 'noopener,noreferrer');
-                          }}
-                          className="flex-1 flex items-center justify-center gap-1 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded border border-blue-100 transition-colors"
-                          title="官方網站"
-                        >
-                          <Globe className="w-3 h-3" />
-                          <span className="text-xs font-bold">官網</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
+              restaurant={restaurant}
+              user={user}
+              userRestaurantData={userRestaurantData}
+              toggleStatus={toggleStatus}
+              hoveredRestaurantId={hoveredRestaurant?.id}
+              setHoveredRestaurant={setHoveredRestaurant}
+              setMapCenter={setMapCenter}
+              viewMode={viewMode}
+            />
           ))}
           {filteredRestaurants.length === 0 && (
             <div className="text-center py-10 text-slate-500 text-sm">
@@ -1413,9 +710,9 @@ export default function App() {
 
           {filteredRestaurants.filter(r => r.lat !== 0 && r.lng !== 0).map((restaurant) => (
             <Marker
-              key={`${restaurant.id}-${userRestaurantData[restaurant.id]?.visited}-${userRestaurantData[restaurant.id]?.wishlist}`}
+              key={`${restaurant.id}-${userRestaurantData[restaurant.id]?.visited}-${userRestaurantData[restaurant.id]?.wishlist}-${hoveredRestaurant?.id === restaurant.id}`}
               position={[restaurant.lat, restaurant.lng]}
-              icon={createCustomIcon(restaurant.cuisine, restaurant.score, userRestaurantData[restaurant.id])}
+              icon={createCustomIcon(restaurant.cuisine, restaurant.score, userRestaurantData[restaurant.id], hoveredRestaurant?.id === restaurant.id)}
               eventHandlers={{
                 mouseover: (e) => {
                   if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
@@ -1469,215 +766,6 @@ export default function App() {
           }}
         />
       )}
-    </div>
-  );
-}
-
-const CustomTooltip = ({ restaurant, x, y, user, userRestaurantData, toggleStatus, viewMode, onMouseEnter, onMouseLeave }: { restaurant: Restaurant, x: number, y: number, user: User | null, userRestaurantData: Record<string, UserRestaurantData>, toggleStatus: (id: string, field: 'visited' | 'favorite' | 'wantToGo') => void, viewMode: string, onMouseEnter: () => void, onMouseLeave: () => void }) => {
-  const tooltipRef = React.useRef<HTMLDivElement>(null);
-  const [pos, setPos] = React.useState({ top: -9999, left: -9999, opacity: 0 });
-
-  React.useEffect(() => {
-    if (tooltipRef.current) {
-      const rect = tooltipRef.current.getBoundingClientRect();
-      const viewportWidth = window.innerWidth;
-      const viewportHeight = window.innerHeight;
-
-      let finalX = x + 15;
-      let finalY = y + 15;
-
-      // Check right edge
-      if (finalX + rect.width > viewportWidth - 10) {
-        finalX = x - rect.width - 15;
-      }
-      // Check bottom edge
-      if (finalY + rect.height > viewportHeight - 10) {
-        finalY = y - rect.height - 15;
-      }
-      // Check top edge
-      if (finalY < 10) {
-        finalY = 10;
-      }
-      // Check left edge
-      if (finalX < 10) {
-        finalX = 10;
-      }
-
-      setPos({ top: finalY, left: finalX, opacity: 1 });
-    }
-  }, [x, y, restaurant]);
-
-  return (
-    <div 
-      ref={tooltipRef}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
-      className="fixed z-[9999] bg-white/95 backdrop-blur-md p-3 rounded-xl shadow-2xl border border-slate-200/60 pointer-events-auto"
-      style={{ 
-        top: pos.top, 
-        left: pos.left, 
-        opacity: pos.opacity,
-        visibility: pos.opacity === 0 ? 'hidden' : 'visible'
-      }}
-    >
-      <div className="min-w-[260px] max-w-[300px] whitespace-normal flex flex-col gap-1.5">
-        {/* Row 1: Name, Score, Buttons */}
-        <div className="flex justify-between items-start gap-2">
-          <h3 className="font-bold text-sm text-slate-900 leading-tight flex-1">
-            {restaurant.name}
-            {restaurant.lat === 0 && <span className="ml-1 text-[10px] font-normal text-slate-400 bg-slate-100 px-1 rounded">住所非公開</span>}
-          </h3>
-          <div className="flex items-center gap-1.5 shrink-0">
-            <div className="flex items-center gap-0.5 bg-slate-100 px-1.5 py-0.5 rounded text-sm font-bold text-slate-700">
-              <Star className="w-3 h-3 text-orange-500 fill-orange-500" />
-              {restaurant.score.toFixed(2)}
-            </div>
-            {user && (
-              <div className="flex items-center gap-1">
-                <button 
-                  onClick={(e) => { e.stopPropagation(); toggleStatus(restaurant.id, 'visited'); }}
-                  className={`flex items-center justify-center p-1 rounded transition-colors ${userRestaurantData[restaurant.id]?.visited ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                  title={userRestaurantData[restaurant.id]?.visited ? '已吃過' : '標記已吃'}
-                >
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  {!userRestaurantData[restaurant.id]?.visited && <span className="text-[10px] ml-0.5 font-bold">已吃</span>}
-                </button>
-                <button 
-                  onClick={(e) => { e.stopPropagation(); toggleStatus(restaurant.id, 'favorite'); }}
-                  className={`flex items-center justify-center p-1 rounded transition-colors ${userRestaurantData[restaurant.id]?.favorite ? 'bg-pink-100 text-pink-700 border border-pink-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-transparent'}`}
-                  title={userRestaurantData[restaurant.id]?.favorite ? '已喜愛' : '標記喜愛'}
-                >
-                  <Heart className="w-3.5 h-3.5" fill={userRestaurantData[restaurant.id]?.favorite ? 'currentColor' : 'none'} />
-                </button>
-                <button 
-                  onClick={(e) => { e.stopPropagation(); toggleStatus(restaurant.id, 'wantToGo'); }}
-                  className={`flex items-center justify-center p-1 rounded transition-colors ${userRestaurantData[restaurant.id]?.wantToGo ? 'bg-blue-100 text-blue-700 border border-blue-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-transparent'}`}
-                  title={userRestaurantData[restaurant.id]?.wantToGo ? '想去' : '標記想去'}
-                >
-                  <Bookmark className="w-3.5 h-3.5" fill={userRestaurantData[restaurant.id]?.wantToGo ? 'currentColor' : 'none'} />
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Row 2: Cuisine, Awards */}
-        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-          <span className="flex items-center gap-1">
-            <Utensils className="w-3 h-3" />
-            {restaurant.cuisine.split('、').map(c => getCuisineInfo(c.trim()).zh).join('、')}
-          </span>
-          {(restaurant.awards?.length > 0 || restaurant.hyakumeiten?.length > 0) && (
-            <div className="flex flex-wrap gap-1">
-              {restaurant.awards?.slice(0, 1).map((award, idx) => (
-                <span key={idx} className="inline-flex items-center gap-0.5 px-1 rounded bg-yellow-100 text-yellow-800 text-[10px] font-bold border border-yellow-200">
-                  <Trophy className="w-2.5 h-2.5" />
-                  {award.replace('The Tabelog Award ', '')}
-                </span>
-              ))}
-              {restaurant.hyakumeiten?.slice(0, 1).map((hm, idx) => (
-                <span key={idx} className="inline-flex items-center gap-0.5 px-1 rounded bg-orange-100 text-orange-800 text-[10px] font-bold border border-orange-200">
-                  <Medal className="w-2.5 h-2.5" />
-                  {hm.replace('食べログ ', '')}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Row 2.5: Store Info (Reservable, Seats, Smoking) */}
-        {restaurant.storeInfo && (
-          <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500 mt-0.5">
-            {/* Reservable */}
-            {restaurant.storeInfo['予約可否'] && (
-              <span className="flex items-center gap-0.5 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">
-                <CalendarCheck className="w-3 h-3 text-slate-400" />
-                {restaurant.storeInfo['予約可否'].includes('完全予約制') ? '完全預約制' : 
-                 restaurant.storeInfo['予約可否'].includes('予約不可') ? '不可預約' : 
-                 restaurant.storeInfo['予約可否'].includes('予約可') ? '可預約' : '預約資訊'}
-              </span>
-            )}
-            
-            {/* Seats */}
-            {restaurant.storeInfo['席数'] && restaurant.storeInfo['席数'].match(/(\d+)\s*席/) && (
-              <span className="flex items-center gap-0.5 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">
-                <Users className="w-3 h-3 text-slate-400" />
-                {restaurant.storeInfo['席数'].match(/(\d+)\s*席/)[1]}席
-              </span>
-            )}
-
-            {/* Smoking */}
-            {restaurant.storeInfo['禁煙・喫煙'] && (
-              <span className="flex items-center gap-0.5 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">
-                {restaurant.storeInfo['禁煙・喫煙'].includes('禁煙') ? (
-                  <><CigaretteOff className="w-3 h-3 text-slate-400" /> 禁菸</>
-                ) : restaurant.storeInfo['禁煙・喫煙'].includes('喫煙可') ? (
-                  <><Cigarette className="w-3 h-3 text-slate-400" /> 可吸菸</>
-                ) : (
-                  <><Cigarette className="w-3 h-3 text-slate-400" /> 分煙</>
-                )}
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* Row 3: Photos + Links */}
-        {restaurant.photos && restaurant.photos.length > 0 && (
-          <div className="flex gap-1.5 mt-0.5 h-16">
-            <div className="flex-1 flex gap-1.5">
-              {restaurant.photos.slice(0, 2).map((photo, idx) => (
-                <div key={idx} className="relative flex-1 rounded overflow-hidden bg-slate-100 border border-slate-200">
-                  <img 
-                    src={photo} 
-                    alt={`${restaurant.name} photo ${idx + 1}`} 
-                    className="w-full h-full object-cover"
-                    referrerPolicy="no-referrer"
-                  />
-                </div>
-              ))}
-            </div>
-            <div className="w-[76px] shrink-0 flex flex-col gap-1">
-              <button 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  window.open(restaurant.url, '_blank', 'noopener,noreferrer');
-                }}
-                className="flex-1 flex items-center justify-center gap-1 bg-orange-50 hover:bg-orange-100 text-orange-600 rounded border border-orange-100 transition-colors"
-                title="在 Tabelog 上查看"
-              >
-                <ExternalLink className="w-3 h-3" />
-                <span className="text-xs font-bold">Tabelog</span>
-              </button>
-              <button 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const gmapsUrl = restaurant.googleMapUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(restaurant.name + ' ' + restaurant.address)}`;
-                  window.open(gmapsUrl, '_blank', 'noopener,noreferrer');
-                }}
-                className="flex-1 flex items-center justify-center gap-1 bg-green-50 hover:bg-green-100 text-green-600 rounded border border-green-100 transition-colors"
-                title="在 Google Maps 上查看"
-              >
-                <MapPin className="w-3 h-3" />
-                <span className="text-xs font-bold">地圖</span>
-              </button>
-              {restaurant.storeInfo && (restaurant.storeInfo['ホームページ'] || restaurant.storeInfo['お店のホームページ']) && (
-                <button 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const url = restaurant.storeInfo['ホームページ'] || restaurant.storeInfo['お店のホームページ'];
-                    window.open(url, '_blank', 'noopener,noreferrer');
-                  }}
-                  className="flex-1 flex items-center justify-center gap-1 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded border border-blue-100 transition-colors"
-                  title="官方網站"
-                >
-                  <Globe className="w-3 h-3" />
-                  <span className="text-xs font-bold">官網</span>
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
     </div>
   );
 }

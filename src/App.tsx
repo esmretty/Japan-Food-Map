@@ -13,7 +13,7 @@ import {
   Fish, UtensilsCrossed, Pizza, Wine, Flame, Shrimp, Sparkles, Beef, Drumstick, Soup,
   Trophy, Medal, ChevronDown, ChevronRight, ChevronLeft, X, Heart, CheckCircle2, LogIn, LogOut,
   Users, CigaretteOff, Cigarette, CalendarCheck, Calendar, Globe, Clock, Phone, Bookmark,
-  Coffee, Cake, IceCream, Beer, Martini, Croissant, Sandwich, Salad, Dessert, Candy, Donut, ChefHat
+  Coffee, Cake, IceCream, Beer, Martini, Croissant, Sandwich, Salad, Dessert, Candy, Donut, ChefHat, RefreshCw
 } from 'lucide-react';
 import { type Restaurant } from './data/restaurants';
 import { auth, db, loginWithGoogle, logout } from './firebase';
@@ -21,7 +21,7 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, setDoc, getDoc, onSnapshot, collection, getDocs, getDocsFromCache, getDocsFromServer } from 'firebase/firestore';
 
 import { type UserRestaurantData } from './types';
-import { cuisineTranslation, groupOrder, dayMap, WARD_PROSPERITY_ORDER } from './constants';
+import { cuisineTranslation, groupOrder, dayMap, WARD_PROSPERITY_ORDER } from './data/constants';
 import { cn, getCuisineInfo, getAwards, getMarkerColor, getMarkerFillColor, getCuisineIcon, createCustomIcon, isClosedOnDay, calculateDistance, getDistanceText } from './utils';
 import { CustomTooltip } from './components/CustomTooltip';
 import { RestaurantCard } from './components/RestaurantCard';
@@ -102,7 +102,10 @@ export default function App() {
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState(0);
 
-  useEffect(() => {
+  const fetchData = async (forceServer = false) => {
+    setIsLoadingData(true);
+    setLoadingProgress(0);
+    
     // Simulate loading progress
     const progressInterval = setInterval(() => {
       setLoadingProgress(prev => {
@@ -113,6 +116,10 @@ export default function App() {
 
     const fetchWithCache = async (collectionName: string) => {
       const colRef = collection(db, collectionName);
+      if (forceServer) {
+        console.log(`Forcing server fetch for ${collectionName}...`);
+        return await getDocsFromServer(colRef);
+      }
       try {
         const snapshot = await getDocsFromCache(colRef);
         if (snapshot.empty) {
@@ -127,23 +134,29 @@ export default function App() {
       }
     };
 
-    Promise.all([
-      fetchWithCache('restaurants').then(snapshot => snapshot.docs.map(doc => doc.data() as Restaurant)),
-      fetchWithCache('tokyoLines').then(snapshot => ({
+    try {
+      const [restaurantsSnap, linesSnap, stationsSnap] = await Promise.all([
+        fetchWithCache('restaurants'),
+        fetchWithCache('tokyoLines'),
+        fetchWithCache('tokyoStations')
+      ]);
+
+      const restaurants = restaurantsSnap.docs.map(doc => doc.data() as Restaurant);
+      const lines = {
         type: 'FeatureCollection',
-        features: snapshot.docs.map(doc => {
+        features: linesSnap.docs.map(doc => {
           const data = doc.data();
           return { ...data, geometry: JSON.parse(data.geometry) };
         })
-      })),
-      fetchWithCache('tokyoStations').then(snapshot => ({
+      };
+      const stations = {
         type: 'FeatureCollection',
-        features: snapshot.docs.map(doc => {
+        features: stationsSnap.docs.map(doc => {
           const data = doc.data();
           return { ...data, geometry: JSON.parse(data.geometry) };
         })
-      }))
-    ]).then(([restaurants, lines, stations]) => {
+      };
+
       setTokyoRestaurants(restaurants);
       setTokyoLinesData(lines);
       setTokyoStationsData(stations);
@@ -152,14 +165,17 @@ export default function App() {
       clearInterval(progressInterval);
       setLoadingProgress(100);
       setTimeout(() => setIsLoadingData(false), 400);
-    }).catch(err => {
+    } catch (err) {
       console.error('Failed to load data', err);
       clearInterval(progressInterval);
       setIsLoadingData(false);
-    });
+    }
+  };
 
-    return () => clearInterval(progressInterval);
+  useEffect(() => {
+    fetchData();
   }, []);
+
   const [sortBy, setSortBy] = useState<'score-desc' | 'score-asc'>('score-desc');
   const itemsPerPage = 50;
 
@@ -797,13 +813,22 @@ export default function App() {
         </MapContainer>
 
         {/* Floating Info Note */}
-        <div className="absolute bottom-6 right-6 z-[400] bg-white/90 backdrop-blur-sm p-3 rounded-xl shadow-lg border border-slate-200/50 max-w-xs pointer-events-none">
-          <div className="flex gap-2 items-start">
-            <Info className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
-            <p className="text-sm text-slate-600 leading-relaxed">
-              此地圖收錄了 {tokyoRestaurants.length} 家東京高分餐廳。點擊標記即可開啟官方 Tabelog 頁面。
-            </p>
+        <div className="absolute bottom-6 right-6 z-[400] flex flex-col gap-2 pointer-events-none">
+          <div className="bg-white/90 backdrop-blur-sm p-3 rounded-xl shadow-lg border border-slate-200/50 max-w-xs pointer-events-auto">
+            <div className="flex gap-2 items-start">
+              <Info className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
+              <p className="text-sm text-slate-600 leading-relaxed">
+                此地圖收錄了 {tokyoRestaurants.length} 家東京高分餐廳。點擊標記即可開啟官方 Tabelog 頁面。
+              </p>
+            </div>
           </div>
+          <button 
+            onClick={() => fetchData(true)}
+            className="self-end bg-white/90 backdrop-blur-sm hover:bg-orange-50 text-orange-600 border border-orange-200/50 shadow-lg px-3 py-2 rounded-xl flex items-center gap-2 text-sm font-bold transition-all pointer-events-auto active:scale-95"
+          >
+            <RefreshCw className="w-4 h-4" />
+            強制更新最新資料
+          </button>
         </div>
       </div>
 

@@ -3,6 +3,9 @@ name: Retry Scraper (A130101-A130502)
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   scrape-retry:
     runs-on: ubuntu-latest

@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { cuisineTranslation } from './constants';
+import { cuisineTranslation } from './data/constants';
 import { type UserRestaurantData } from './types';
 import { type Restaurant } from './data/restaurants';
 

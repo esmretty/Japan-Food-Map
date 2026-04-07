@@ -27,6 +27,7 @@ import { CustomTooltip } from './components/CustomTooltip';
 import { RestaurantCard } from './components/RestaurantCard';
 import { Sidebar } from './components/Sidebar';
 
+
 // Map Controller to handle flying to a specific location
 function MapController({ center, zoom }: { center: [number, number] | null, zoom: number }) {
   const map = useMap();
@@ -825,6 +826,7 @@ export default function App() {
           }}
         />
       )}
+      
     </div>
   );
 }

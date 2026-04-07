@@ -1,0 +1,30 @@
+name: Retry Scraper (A130101-A130502)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  scrape-retry:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360 # 6 hours max
+    strategy:
+      matrix:
+        part: [1, 2, 3, 4]
+      fail-fast: false
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        
+    - name: Install dependencies
+      run: npm install cheerio
+        
+    - name: Run Scraper Retry Part ${{ matrix.part }}
+      run: node scripts/scraper-retry.mjs ${{ matrix.part }}

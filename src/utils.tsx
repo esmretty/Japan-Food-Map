@@ -127,7 +127,7 @@ export function createCustomIcon(cuisine: string, score: number, userData?: User
   if (userData?.favorite) {
     iconHtml = renderToString(
       <div 
-        className={`transition-all duration-200 ${isHighlighted ? 'scale-125 z-50 animate-glow-blink' : 'hover:scale-125'}`}
+        className={`transition-all duration-200 ${isHighlighted ? 'scale-125 z-50 animate-sonar-ripple' : 'hover:scale-125'}`}
         style={{ 
           background: 'linear-gradient(135deg, #f43f5e, #e11d48, #9f1239)',
           width: `${size}px`,
@@ -150,7 +150,7 @@ export function createCustomIcon(cuisine: string, score: number, userData?: User
   } else if (userData?.wantToGo) {
     iconHtml = renderToString(
       <div 
-        className={`transition-all duration-200 ${isHighlighted ? 'scale-125 z-50 animate-glow-blink' : 'hover:scale-125'}`}
+        className={`transition-all duration-200 ${isHighlighted ? 'scale-125 z-50 animate-sonar-ripple' : 'hover:scale-125'}`}
         style={{ 
           background: 'linear-gradient(135deg, #3b82f6, #2563eb, #1d4ed8)',
           width: `${size}px`,
@@ -171,7 +171,7 @@ export function createCustomIcon(cuisine: string, score: number, userData?: User
     const borderColor = userData?.visited ? 'black' : 'white';
     iconHtml = renderToString(
       <div 
-        className={`transition-all duration-200 ${isHighlighted ? 'scale-125 z-50 animate-glow-blink' : 'hover:scale-125 hover:shadow-lg hover:border-[3px]'}`}
+        className={`transition-all duration-200 ${isHighlighted ? 'scale-125 z-50 animate-sonar-ripple' : 'hover:scale-125 hover:shadow-lg hover:border-[3px]'}`}
         style={{ 
           backgroundColor: baseBgColor,
           width: `${size}px`,

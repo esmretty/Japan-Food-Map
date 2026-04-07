@@ -71,6 +71,9 @@ async function commitAndPush(area) {
     
     execSync(`git commit -m "Auto-update Tabelog data: Retry Part ${partIndex} - Area ${area}"`);
     
+    // 強制暫存其他無關的變更 (例如 package-lock.json)，確保 rebase 順利
+    try { execSync('git stash'); } catch(e) {}
+    
     let pushed = false;
     for (let i = 0; i < 5; i++) {
         try {

@@ -27,7 +27,7 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        run: npm install && npm install cheerio
+        run: npm install && npm install cheerio --no-save
 
       - name: Run Scraper Part ${{ matrix.part }}
         run: node scripts/scraper.mjs ${{ matrix.part }}

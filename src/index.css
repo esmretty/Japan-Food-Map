@@ -63,3 +63,32 @@
 .animate-sonar-ripple {
   animation: sonarRipple 1.5s infinite cubic-bezier(0.1, 0.8, 0.3, 1);
 }
+
+@keyframes flowDash {
+  from { stroke-dashoffset: 24; }
+  to { stroke-dashoffset: 0; }
+}
+
+.animated-route-line {
+  stroke-dasharray: 12 12 !important;
+  animation: flowDash 2s linear infinite !important;
+}
+
+.custom-station-label {
+  background: transparent;
+  border: none;
+}
+
+.route-label-circle {
+  background-color: white;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 12px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  transform: translate(-50%, -50%);
+}

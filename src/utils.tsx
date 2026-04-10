@@ -21,8 +21,18 @@ export const getCuisineInfo = (cuisine: string) => {
 };
 
 export function getAwards(restaurant: Restaurant): { awards: string[], hyakumeiten: string[] } {
-  const awards = [...(restaurant.awards || [])];
-  const hyakumeiten = [...(restaurant.hyakumeiten || [])];
+  const awards = Array.isArray(restaurant.awards) ? [...restaurant.awards] : [];
+  
+  let hyakumeiten: string[] = [];
+  if (Array.isArray(restaurant.hyakumeiten)) {
+    hyakumeiten = [...restaurant.hyakumeiten];
+  } else if (typeof restaurant.hyakumeiten === 'boolean') {
+    if (restaurant.hyakumeiten) {
+      hyakumeiten = ['百名店'];
+    }
+  } else if (typeof restaurant.hyakumeiten === 'string') {
+    hyakumeiten = [restaurant.hyakumeiten];
+  }
   
   const awardText = restaurant.storeInfo?.['受賞・選出歴'];
   if (awardText) {
@@ -44,17 +54,28 @@ export function getAwards(restaurant: Restaurant): { awards: string[], hyakumeit
   return { awards, hyakumeiten };
 }
 
-export function getMarkerColor(score: number): string {
-  if (score >= 4.00) return '#a855f7'; // Tailwind purple-500
-  return '#fb923c'; // Tailwind orange-400
+export const defaultMarkerColors = {
+  '4.0+': '#a855f7',
+  '3.7-3.99': '#fb923c',
+  '3.4-3.69': '#eab308',
+  '3.4-': '#eab308'
+};
+
+export function getMarkerColor(score: number, colors: Record<string, string> = defaultMarkerColors): string {
+  if (score >= 4.00) return colors['4.0+'];
+  if (score >= 3.70) return colors['3.7-3.99'];
+  if (score >= 3.40) return colors['3.4-3.69'];
+  return colors['3.4-'];
 }
 
 export function getMarkerFillColor(score: number, userData?: UserRestaurantData): string {
-  if (userData?.visited) return '#cbd5e1'; // Light Slate
+  if (userData?.visited) return '#475569'; // Slate/Black
   if (userData?.favorite) return '#fbcfe8'; // Light Pink
   if (userData?.wantToGo) return '#bfdbfe'; // Light Blue
   if (score >= 4.00) return '#d8b4fe'; // Light Purple (purple-300)
-  return '#fdba74'; // Light Orange
+  if (score >= 3.70) return '#fdba74'; // Light Orange
+  if (score >= 3.40) return '#fef08a'; // Light Yellow (yellow-200)
+  return '#fef08a'; // Light Yellow (yellow-200)
 }
 
 export function getCuisineIcon(cuisine: string, size: number = 16) {
@@ -112,13 +133,13 @@ export function getCuisineIcon(cuisine: string, size: number = 16) {
 
 const iconCache = new Map<string, L.DivIcon>();
 
-export function createCustomIcon(cuisine: string, score: number, userData?: UserRestaurantData, isHighlighted: boolean = false) {
-  const cacheKey = `${cuisine}-${score}-${userData?.visited}-${userData?.favorite}-${userData?.wantToGo}-${isHighlighted}`;
+export function createCustomIcon(cuisine: string, score: number, userData?: UserRestaurantData, isHighlighted: boolean = false, colors: Record<string, string> = defaultMarkerColors) {
+  const cacheKey = `${cuisine}-${score}-${userData?.visited}-${userData?.favorite}-${userData?.wantToGo}-${isHighlighted}-${JSON.stringify(colors)}`;
   if (iconCache.has(cacheKey)) {
     return iconCache.get(cacheKey)!;
   }
 
-  const baseBgColor = getMarkerColor(score);
+  const baseBgColor = getMarkerColor(score, colors);
   const size = 24;
   const iconSize = 14;
   
@@ -152,7 +173,7 @@ export function createCustomIcon(cuisine: string, score: number, userData?: User
       <div 
         className={`transition-all duration-200 ${isHighlighted ? 'scale-125 z-50 animate-sonar-ripple' : 'hover:scale-125'}`}
         style={{ 
-          background: 'linear-gradient(135deg, #3b82f6, #2563eb, #1d4ed8)',
+          background: 'linear-gradient(135deg, #60a5fa, #3b82f6, #2563eb)',
           width: `${size}px`,
           height: `${size}px`,
           border: `2px solid white`,
@@ -167,8 +188,28 @@ export function createCustomIcon(cuisine: string, score: number, userData?: User
         <Bookmark size={iconSize} fill="currentColor" />
       </div>
     );
+  } else if (userData?.visited) {
+    iconHtml = renderToString(
+      <div 
+        className={`transition-all duration-200 ${isHighlighted ? 'scale-125 z-50 animate-sonar-ripple' : 'hover:scale-125'}`}
+        style={{ 
+          background: 'linear-gradient(135deg, #475569, #1e293b, #0f172a)',
+          width: `${size}px`,
+          height: `${size}px`,
+          border: `2px solid white`,
+          boxShadow: isHighlighted ? undefined : '0 0 10px 3px rgba(30, 41, 59, 0.6), inset 0 0 4px rgba(255,255,255,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'white',
+          borderRadius: '50%',
+        }}
+      >
+        {getCuisineIcon(cuisine, iconSize)}
+      </div>
+    );
   } else {
-    const borderColor = userData?.visited ? 'black' : 'white';
+    const borderColor = 'white';
     iconHtml = renderToString(
       <div 
         className={`transition-all duration-200 ${isHighlighted ? 'scale-125 z-50 animate-sonar-ripple' : 'hover:scale-125 hover:shadow-lg hover:border-[3px]'}`}

@@ -12,24 +12,38 @@ async function migrate() {
   let data: any[] = [];
   
   for (let i = 1; i <= 4; i++) {
-    const dataPath = join(process.cwd(), 'src', 'data', `tabelog_part${i}.json`);
+    const dataPath = join(process.cwd(), 'src', 'data', `tabelog_retry_part${i}.json`);
     if (existsSync(dataPath)) {
-      const partData = JSON.parse(readFileSync(dataPath, 'utf8'));
-      data = data.concat(partData);
-      console.log(`Loaded part ${i}: ${partData.length} records`);
+      console.log(`Parsing part ${i}...`);
+      try {
+        const partData = JSON.parse(readFileSync(dataPath, 'utf8'));
+        data = data.concat(partData);
+        console.log(`Loaded part ${i}: ${partData.length} records`);
+      } catch (e) {
+        console.error(`Error parsing part ${i}:`, e);
+        process.exit(1);
+      }
+    } else {
+      console.log(`File not found: ${dataPath}`);
     }
   }
   
   if (data.length === 0) {
-    console.log('No data found to migrate. Please run the scraper first.');
+    console.log('No data found to migrate. Please upload the files first.');
     process.exit(0);
   }
   
   console.log(`Total records to migrate: ${data.length}`);
   
-  const CHUNK_SIZE = 400; // Firestore batch limit is 500
+  const CHUNK_SIZE = 250; // Reduced chunk size for stability
   
-  for (let i = 0; i < data.length; i += CHUNK_SIZE) {
+  const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+  const START_INDEX = 0;
+  let successCount = START_INDEX;
+  console.log(`Resuming migration from index ${START_INDEX}...`);
+
+  for (let i = START_INDEX; i < data.length; i += CHUNK_SIZE) {
     const chunk = data.slice(i, i + CHUNK_SIZE);
     const batch = writeBatch(db);
     
@@ -38,11 +52,17 @@ async function migrate() {
       batch.set(docRef, restaurant);
     });
     
-    await batch.commit();
-    console.log(`Migrated ${i + chunk.length} / ${data.length} restaurants`);
+    try {
+      await batch.commit();
+      successCount += chunk.length;
+      console.log(`Successfully migrated ${successCount} / ${data.length} restaurants`);
+    } catch (error) {
+      console.error(`Error migrating chunk starting at index ${i}:`, error);
+    }
+    await delay(500); 
   }
   
-  console.log('Migration complete!');
+  console.log(`Migration complete! Successfully processed ${successCount} records.`);
   process.exit(0);
 }
 

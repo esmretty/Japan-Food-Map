@@ -1,5 +1,5 @@
 import React from 'react';
-import { Utensils, LogOut, LogIn, CheckCircle2, Heart, Bookmark, Search, UtensilsCrossed, ChevronDown, ChevronRight, Calendar, MapPin, Star, Trophy, Medal, ChevronLeft, Globe } from 'lucide-react';
+import { Utensils, LogOut, LogIn, CheckCircle2, Heart, Bookmark, Search, UtensilsCrossed, ChevronDown, ChevronRight, Calendar, MapPin, Star, Trophy, Medal, ChevronLeft, Globe, Camera, Link } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { cn, getCuisineInfo } from '../utils';
 
@@ -42,10 +42,16 @@ interface SidebarProps {
   setMinScore: (score: number) => void;
   maxScore: number;
   setMaxScore: (score: number) => void;
+  selectedScoreRanges: string[];
+  setSelectedScoreRanges: React.Dispatch<React.SetStateAction<string[]>>;
+  useCustomScoreRange: boolean;
+  setUseCustomScoreRange: (useCustom: boolean) => void;
   requireAward: boolean;
   setRequireAward: (require: boolean) => void;
   requireHyakumeiten: boolean;
   setRequireHyakumeiten: (require: boolean) => void;
+  setIsImageUploadOpen: (isOpen: boolean) => void;
+  setIsUrlSearchOpen: (isOpen: boolean) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -55,7 +61,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   savePreferences, loadPreferences, saveStatus, groupOrder, groupedCuisines, cuisineCounts,
   isDaysOpen, setIsDaysOpen, selectedDay, setSelectedDay, dayMap, isLocationOpen, setIsLocationOpen,
   selectedWards, setSelectedWards, availableWards, isAdvancedOpen, setIsAdvancedOpen,
-  minScore, setMinScore, maxScore, setMaxScore, requireAward, setRequireAward, requireHyakumeiten, setRequireHyakumeiten
+  minScore, setMinScore, maxScore, setMaxScore, selectedScoreRanges, setSelectedScoreRanges, useCustomScoreRange, setUseCustomScoreRange, requireAward, setRequireAward, requireHyakumeiten, setRequireHyakumeiten, setIsImageUploadOpen, setIsUrlSearchOpen
 }) => {
   return (
     <div className="w-full md:w-[400px] h-[45vh] md:h-full bg-slate-50 shadow-2xl flex flex-col z-30 relative shrink-0">
@@ -71,6 +77,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="flex items-center gap-2">
             {user ? (
               <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => window.dispatchEvent(new CustomEvent('open-migration-modal'))}
+                  className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-bold hover:bg-blue-200 transition-colors"
+                >
+                  搬移舊資料
+                </button>
                 <img src={user.photoURL || ''} alt="avatar" className="w-8 h-8 rounded-full border border-slate-200 shadow-sm" />
                 <button onClick={logout} className="p-1.5 text-slate-500 hover:bg-slate-200 rounded-md transition-colors" title="登出">
                   <LogOut className="w-5 h-5" />
@@ -146,16 +158,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         )}
 
-        {/* Search */}
-        <div className="relative mb-4">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input 
-            type="text" 
-            placeholder="搜尋餐廳名稱..."
-            className="w-full pl-8 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
+        {/* Search and Image Upload */}
+        <div className="flex gap-2 mb-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input 
+              type="text" 
+              placeholder="搜尋餐廳名稱..."
+              className="w-full pl-8 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          <button
+            onClick={() => setIsUrlSearchOpen(true)}
+            className="flex-shrink-0 flex items-center justify-center w-10 h-10 bg-white border border-slate-200 rounded-lg text-slate-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-colors"
+            title="以店名新增餐廳"
+          >
+            <Search className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => setIsImageUploadOpen(true)}
+            className="flex-shrink-0 flex items-center justify-center w-10 h-10 bg-white border border-slate-200 rounded-lg text-slate-600 hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200 transition-colors"
+            title="上傳照片搜尋"
+          >
+            <Camera className="w-5 h-5" />
+          </button>
         </div>
 
         {/* Filters */}
@@ -267,115 +295,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             )}
           </div>
 
-          {/* Days Filter */}
-          <div className="mb-4">
-            <div 
-              className="flex items-center justify-between py-2.5 px-4 md:px-6 -mx-4 md:-mx-6 bg-blue-50 cursor-pointer hover:bg-blue-100 transition-colors border-y border-blue-100"
-              onClick={() => setIsDaysOpen(!isDaysOpen)}
-            >
-              <div className="flex items-center gap-2 text-blue-700">
-                <Calendar className="w-4 h-4" />
-                <p className="text-sm font-bold">營業日篩選</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-blue-600 bg-white px-2 py-0.5 rounded border border-blue-200">
-                  {selectedDay ? dayMap[selectedDay] : '全部'}
-                </span>
-                {isDaysOpen ? <ChevronDown className="w-4 h-4 text-blue-400" /> : <ChevronRight className="w-4 h-4 text-blue-400" />}
-              </div>
-            </div>
-            
-            {isDaysOpen && (
-              <div className="pt-3">
-                <div className="flex flex-wrap gap-1">
-                  <button
-                    onClick={() => setSelectedDay(null)}
-                    className={cn(
-                      "px-1.5 py-0.5 rounded text-[12px] font-medium transition-colors border",
-                      selectedDay === null
-                        ? "bg-blue-600 text-white border-blue-700"
-                        : "bg-white text-slate-600 border-slate-200 hover:border-blue-300 hover:text-blue-600"
-                    )}
-                  >
-                    清除
-                  </button>
-                  {['月', '火', '水', '木', '金', '土', '日', '祝'].map(day => (
-                    <button
-                      key={day}
-                      onClick={() => setSelectedDay(day)}
-                      className={cn(
-                        "px-1.5 py-0.5 rounded text-[12px] font-medium transition-colors border",
-                        selectedDay === day
-                          ? "bg-orange-500 text-white border-orange-600"
-                          : "bg-white text-slate-600 border-slate-200 hover:border-orange-300"
-                      )}
-                    >
-                      {dayMap[day]}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Location Filter */}
-          <div className="mb-4">
-            <div 
-              className="flex items-center justify-between py-2.5 px-4 md:px-6 -mx-4 md:-mx-6 bg-purple-50 cursor-pointer hover:bg-purple-100 transition-colors border-y border-purple-100"
-              onClick={() => setIsLocationOpen(!isLocationOpen)}
-            >
-              <div className="flex items-center gap-2 text-purple-700">
-                <MapPin className="w-4 h-4" />
-                <p className="text-sm font-bold">行政區篩選</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-purple-600 bg-white px-2 py-0.5 rounded border border-purple-200">
-                  已選 {selectedWards.length === 0 ? '全部' : selectedWards.length}
-                </span>
-                {isLocationOpen ? <ChevronDown className="w-4 h-4 text-purple-400" /> : <ChevronRight className="w-4 h-4 text-purple-400" />}
-              </div>
-            </div>
-            
-            {isLocationOpen && (
-              <div className="pt-3">
-                <div className="flex flex-wrap gap-1.5 max-h-[150px] overflow-y-auto pr-1 custom-scrollbar">
-                  <button
-                    onClick={() => setSelectedWards([])}
-                    className={cn(
-                      "px-1.5 py-0.5 text-[12px] font-medium rounded transition-all border",
-                      selectedWards.length === 0
-                        ? "bg-purple-100 text-purple-700 border-purple-300 shadow-sm" 
-                        : "bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
-                    )}
-                  >
-                    全部
-                  </button>
-                  {availableWards.map(ward => {
-                    const isSelected = selectedWards.includes(ward);
-                    return (
-                      <button
-                        key={ward}
-                        onClick={() => {
-                          setSelectedWards(prev => 
-                            prev.includes(ward) ? prev.filter(w => w !== ward) : [...prev, ward]
-                          );
-                        }}
-                        className={cn(
-                          "px-1.5 py-0.5 text-[12px] font-medium rounded transition-all border",
-                          isSelected 
-                            ? "bg-purple-100 text-purple-700 border-purple-300 shadow-sm" 
-                            : "bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
-                        )}
-                      >
-                        {ward}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-
           {/* Rating & Awards Filter */}
           <div className="mb-4">
             <div 
@@ -412,26 +331,65 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </div>
                   )}
                 </div>
-                <div className="flex items-center gap-2 text-sm font-medium text-slate-600">
-                  <input 
-                    type="number" 
-                    step="0.01"
-                    min="0"
-                    max="5"
-                    className="w-20 px-2 py-1 rounded border border-slate-300 focus:ring-orange-500 focus:border-orange-500 text-sm"
-                    value={minScore}
-                    onChange={(e) => setMinScore(parseFloat(e.target.value) || 0)}
-                  />
-                  <span>~</span>
-                  <input 
-                    type="number" 
-                    step="0.01"
-                    min="0"
-                    max="5"
-                    className="w-20 px-2 py-1 rounded border border-slate-300 focus:ring-orange-500 focus:border-orange-500 text-sm"
-                    value={maxScore}
-                    onChange={(e) => setMaxScore(parseFloat(e.target.value) || 5)}
-                  />
+                <div className="space-y-3">
+                  <div className="flex flex-wrap gap-1.5">
+                    {['4.0+', '3.9', '3.8', '3.7', '3.6', '3.5', '3.4', '3.4-'].map(range => {
+                      const isSelected = selectedScoreRanges.includes(range);
+                      return (
+                        <button
+                          key={range}
+                          onClick={() => {
+                            setUseCustomScoreRange(false);
+                            setSelectedScoreRanges(prev => 
+                              prev.includes(range) ? prev.filter(r => r !== range) : [...prev, range]
+                            );
+                          }}
+                          className={cn(
+                            "px-2 py-1 text-[12px] font-medium rounded transition-all border",
+                            !useCustomScoreRange && isSelected
+                              ? "bg-orange-100 text-orange-700 border-orange-300 shadow-sm"
+                              : "bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                          )}
+                        >
+                          {range}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input 
+                        type="radio" 
+                        name="scoreRangeType"
+                        checked={useCustomScoreRange}
+                        onChange={() => setUseCustomScoreRange(true)}
+                        className="w-3.5 h-3.5 text-orange-500 focus:ring-orange-500"
+                      />
+                      <span className="text-xs text-slate-600 font-medium">自訂範圍：</span>
+                    </label>
+                    <div className={cn("flex items-center gap-2 text-sm font-medium transition-opacity", useCustomScoreRange ? "opacity-100" : "opacity-50 pointer-events-none")}>
+                      <input 
+                        type="number" 
+                        step="0.01"
+                        min="0"
+                        max="5"
+                        className="w-16 px-1.5 py-0.5 rounded border border-slate-300 focus:ring-orange-500 focus:border-orange-500 text-xs"
+                        value={minScore}
+                        onChange={(e) => setMinScore(parseFloat(e.target.value) || 0)}
+                      />
+                      <span className="text-slate-400">~</span>
+                      <input 
+                        type="number" 
+                        step="0.01"
+                        min="0"
+                        max="5"
+                        className="w-16 px-1.5 py-0.5 rounded border border-slate-300 focus:ring-orange-500 focus:border-orange-500 text-xs"
+                        value={maxScore}
+                        onChange={(e) => setMaxScore(parseFloat(e.target.value) || 5)}
+                      />
+                    </div>
+                  </div>
                 </div>
                 
                 <div className="flex flex-wrap gap-4 pt-3 border-t border-slate-200">
@@ -466,6 +424,127 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     />
                     <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900">百名店</span>
                   </label>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Location Filter */}
+          <div className="mb-4">
+            <div 
+              className="flex items-center justify-between py-2.5 px-4 md:px-6 -mx-4 md:-mx-6 bg-purple-50 cursor-pointer hover:bg-purple-100 transition-colors border-y border-purple-100"
+              onClick={() => setIsLocationOpen(!isLocationOpen)}
+            >
+              <div className="flex items-center gap-2 text-purple-700">
+                <MapPin className="w-4 h-4" />
+                <p className="text-sm font-bold">行政區篩選 (可複選)</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-purple-600 bg-white px-2 py-0.5 rounded border border-purple-200">
+                  已選 {selectedWards.length}
+                </span>
+                {isLocationOpen ? <ChevronDown className="w-4 h-4 text-purple-400" /> : <ChevronRight className="w-4 h-4 text-purple-400" />}
+              </div>
+            </div>
+            
+            {isLocationOpen && (
+              <div className="pt-3">
+                <div className="flex items-center gap-2 mb-2 px-1">
+                  <label className="flex items-center gap-1 cursor-pointer text-xs font-medium text-slate-600 hover:text-slate-900">
+                    <input 
+                      type="checkbox" 
+                      className="w-3 h-3 rounded border-slate-300 text-purple-500 focus:ring-purple-500"
+                      checked={selectedWards.length === availableWards.length}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedWards([...availableWards]);
+                        } else {
+                          setSelectedWards([]);
+                        }
+                      }}
+                    />
+                    全勾
+                  </label>
+                  <button 
+                    onClick={() => setSelectedWards([])}
+                    className="text-xs font-medium text-slate-600 hover:text-slate-900"
+                  >
+                    全消
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-1.5 max-h-[25vh] overflow-y-auto px-1">
+                  {availableWards.map(ward => {
+                    const isSelected = selectedWards.includes(ward);
+                    return (
+                      <button
+                        key={ward}
+                        onClick={() => {
+                          setSelectedWards(prev => 
+                            prev.includes(ward) ? prev.filter(w => w !== ward) : [...prev, ward]
+                          );
+                        }}
+                        className={cn(
+                          "px-2 py-1 text-[12px] font-medium rounded transition-all border",
+                          isSelected 
+                            ? "bg-purple-100 text-purple-700 border-purple-300 shadow-sm" 
+                            : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
+                        )}
+                      >
+                        {ward}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Days Filter */}
+          <div className="mb-4">
+            <div 
+              className="flex items-center justify-between py-2.5 px-4 md:px-6 -mx-4 md:-mx-6 bg-blue-50 cursor-pointer hover:bg-blue-100 transition-colors border-y border-blue-100"
+              onClick={() => setIsDaysOpen(!isDaysOpen)}
+            >
+              <div className="flex items-center gap-2 text-blue-700">
+                <Calendar className="w-4 h-4" />
+                <p className="text-sm font-bold">營業日篩選</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-blue-600 bg-white px-2 py-0.5 rounded border border-blue-200">
+                  {selectedDay ? dayMap[selectedDay] : '不限'}
+                </span>
+                {isDaysOpen ? <ChevronDown className="w-4 h-4 text-blue-400" /> : <ChevronRight className="w-4 h-4 text-blue-400" />}
+              </div>
+            </div>
+            
+            {isDaysOpen && (
+              <div className="pt-3">
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    onClick={() => setSelectedDay(null)}
+                    className={cn(
+                      "px-1.5 py-0.5 rounded text-[12px] font-medium transition-colors border",
+                      selectedDay === null 
+                        ? "bg-blue-600 text-white border-blue-700"
+                        : "bg-white text-slate-600 border-slate-200 hover:border-blue-300 hover:text-blue-600"
+                    )}
+                  >
+                    清除
+                  </button>
+                  {['月', '火', '水', '木', '金', '土', '日', '祝'].map(day => (
+                    <button
+                      key={day}
+                      onClick={() => setSelectedDay(day)}
+                      className={cn(
+                        "px-1.5 py-0.5 rounded text-[12px] font-medium transition-colors border",
+                        selectedDay === day
+                          ? "bg-orange-500 text-white border-orange-600"
+                          : "bg-white text-slate-600 border-slate-200 hover:border-orange-300"
+                      )}
+                    >
+                      {dayMap[day]}
+                    </button>
+                  ))}
                 </div>
               </div>
             )}

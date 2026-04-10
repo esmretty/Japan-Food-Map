@@ -5,7 +5,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { renderToString } from 'react-dom/server';
-import { MapContainer, TileLayer, Marker, Tooltip, useMap, LayersControl, GeoJSON, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Tooltip, useMap, LayersControl, GeoJSON, useMapEvents, Polyline } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { 
@@ -13,7 +13,7 @@ import {
   Fish, UtensilsCrossed, Pizza, Wine, Flame, Shrimp, Sparkles, Beef, Drumstick, Soup,
   Trophy, Medal, ChevronDown, ChevronRight, ChevronLeft, X, Heart, CheckCircle2, LogIn, LogOut,
   Users, CigaretteOff, Cigarette, CalendarCheck, Calendar, Globe, Clock, Phone, Bookmark,
-  Coffee, Cake, IceCream, Beer, Martini, Croissant, Sandwich, Salad, Dessert, Candy, Donut, ChefHat, RefreshCw
+  Coffee, Cake, IceCream, Beer, Martini, Croissant, Sandwich, Salad, Dessert, Candy, Donut, ChefHat, RefreshCw, LocateFixed
 } from 'lucide-react';
 import { type Restaurant } from './data/restaurants';
 import { auth, db, loginWithGoogle, logout } from './firebase';
@@ -22,10 +22,14 @@ import { doc, setDoc, getDoc, onSnapshot, collection, getDocs, getDocsFromCache,
 
 import { type UserRestaurantData } from './types';
 import { cuisineTranslation, groupOrder, dayMap, WARD_PROSPERITY_ORDER } from './data/constants';
-import { cn, getCuisineInfo, getAwards, getMarkerColor, getMarkerFillColor, getCuisineIcon, createCustomIcon, isClosedOnDay, calculateDistance, getDistanceText } from './utils';
+import { cn, getCuisineInfo, getAwards, getMarkerColor, getMarkerFillColor, getCuisineIcon, createCustomIcon, isClosedOnDay, calculateDistance, getDistanceText, defaultMarkerColors } from './utils';
 import { CustomTooltip } from './components/CustomTooltip';
 import { RestaurantCard } from './components/RestaurantCard';
 import { Sidebar } from './components/Sidebar';
+import ImageUploadModal from './components/ImageUploadModal';
+import AddRestaurantModal from './components/AddRestaurantModal';
+import { MigrationModal } from './components/MigrationModal';
+import { Camera } from 'lucide-react';
 
 
 // Map Controller to handle flying to a specific location
@@ -55,6 +59,8 @@ export default function App() {
   ]);
   const [minScore, setMinScore] = useState<number>(3.5);
   const [maxScore, setMaxScore] = useState<number>(5.0);
+  const [selectedScoreRanges, setSelectedScoreRanges] = useState<string[]>(['4.0+', '3.9', '3.8', '3.7']);
+  const [useCustomScoreRange, setUseCustomScoreRange] = useState<boolean>(false);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [selectedWards, setSelectedWards] = useState<string[]>([]);
   const [requireAward, setRequireAward] = useState(false);
@@ -64,6 +70,7 @@ export default function App() {
   const hoverTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [mapCenter, setMapCenter] = useState<[number, number] | null>(null);
+  const [mapZoom, setMapZoom] = useState<number>(15);
   const [activeBaseLayer, setActiveBaseLayer] = useState('詳細地圖 (OSM)');
   const [isListOpen, setIsListOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState<{status: 'success' | 'error', message: string} | null>(null);
@@ -72,8 +79,8 @@ export default function App() {
 
   const [isCuisineOpen, setIsCuisineOpen] = useState(true);
   const [isLocationOpen, setIsLocationOpen] = useState(false);
-  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
-  const [isDaysOpen, setIsDaysOpen] = useState(true);
+  const [isAdvancedOpen, setIsAdvancedOpen] = useState(true);
+  const [isDaysOpen, setIsDaysOpen] = useState(false);
 
   const tabFiltersRef = React.useRef<Record<string, any>>({
     all: {
@@ -82,6 +89,8 @@ export default function App() {
       ],
       minScore: 3.5,
       maxScore: 5.0,
+      selectedScoreRanges: ['4.0+', '3.9', '3.8', '3.7'],
+      useCustomScoreRange: false,
       selectedDay: null,
       requireAward: false,
       requireHyakumeiten: false,
@@ -101,6 +110,16 @@ export default function App() {
   const [tokyoStationsData, setTokyoStationsData] = useState<any>(null);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState(0);
+  const [isImageUploadOpen, setIsImageUploadOpen] = useState(false);
+  const [isUrlSearchOpen, setIsUrlSearchOpen] = useState(false);
+  const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
+  const [highlightedRestaurantId, setHighlightedRestaurantId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleOpenMigration = () => setIsMigrationModalOpen(true);
+    window.addEventListener('open-migration-modal', handleOpenMigration);
+    return () => window.removeEventListener('open-migration-modal', handleOpenMigration);
+  }, []);
 
   const fetchData = async (forceServer = false) => {
     setIsLoadingData(true);
@@ -141,7 +160,7 @@ export default function App() {
         fetchWithCache('tokyoStations')
       ]);
 
-      const restaurants = restaurantsSnap.docs.map(doc => doc.data() as Restaurant);
+      const restaurants = restaurantsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Restaurant));
       const lines = {
         type: 'FeatureCollection',
         features: linesSnap.docs.map(doc => {
@@ -183,46 +202,110 @@ export default function App() {
     const WARD_PROSPERITY_ORDER = [
       '港区', '新宿区', '渋谷区', '中央区', '千代田区', '豊島区', '台東区', '目黒区', '品川区', '世田谷区',
       '中野区', '杉並区', '江東区', '墨田区', '大田区', '北区', '荒川区', '板橋区', '練馬区', '足立区',
-      '葛飾区', '江戸川区', '武蔵野市', '三鷹市', '調布市', '町田市', '八王子市', '立川市'
+      '葛飾区', '江戸川区', '文京区',
+      '八王子市', '立川市', '武蔵野市', '三鷹市', '青梅市', '府中市', '昭島市', '調布市', '町田市', '小金井市',
+      '小平市', '日野市', '東村山市', '国分寺市', '国立市', '福生市', '狛江市', '東大和市', '清瀬市', '東久留米市',
+      '武蔵村山市', '多摩市', '稲城市', '羽村市', 'あきる野市', '西東京市'
     ];
     
-    const wards = new Set<string>();
-    tokyoRestaurants.forEach(r => {
-      const ward = WARD_PROSPERITY_ORDER.find(w => r.address.includes(w));
-      if (ward) wards.add(ward);
-    });
-    
-    return Array.from(wards).sort((a, b) => {
-      const indexA = WARD_PROSPERITY_ORDER.indexOf(a);
-      const indexB = WARD_PROSPERITY_ORDER.indexOf(b);
-      
-      if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-      if (indexA !== -1) return -1;
-      if (indexB !== -1) return 1;
-      
-      const aIsKu = a.endsWith('区');
-      const bIsKu = b.endsWith('区');
-      if (aIsKu && !bIsKu) return -1;
-      if (!aIsKu && bIsKu) return 1;
-      return a.localeCompare(b, 'ja');
-    });
-  }, [tokyoRestaurants]);
+    return WARD_PROSPERITY_ORDER;
+  }, []);
 
   const cuisineCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    tokyoRestaurants.forEach(r => {
-      r.cuisine.split('、').forEach(c => {
+    
+    const baseRestaurants = tokyoRestaurants.filter(r => {
+      // 0. View Mode Filter
+      if (viewMode === 'visited' && !userRestaurantData[r.id]?.visited) return false;
+      if (viewMode === 'favorite' && !userRestaurantData[r.id]?.favorite) return false;
+      if (viewMode === 'wantToGo' && !userRestaurantData[r.id]?.wantToGo) return false;
+
+      // 1. Search Query
+      const query = searchQuery.toLowerCase();
+      const matchesSearch = r.name.toLowerCase().includes(query) || (r.nameTw && r.nameTw.toLowerCase().includes(query));
+      if (!matchesSearch) return false;
+
+      // 1.5 Ward Filter
+      if (selectedWards.length > 0) {
+        const WARD_PROSPERITY_ORDER = [
+          '港区', '新宿区', '渋谷区', '中央区', '千代田区', '豊島区', '台東区', '目黒区', '品川区', '世田谷区',
+          '中野区', '杉並区', '江東区', '墨田区', '大田区', '北区', '荒川区', '板橋区', '練馬区', '足立区',
+          '葛飾区', '江戸川区', '文京区',
+          '八王子市', '立川市', '武蔵野市', '三鷹市', '青梅市', '府中市', '昭島市', '調布市', '町田市', '小金井市',
+          '小平市', '日野市', '東村山市', '国分寺市', '国立市', '福生市', '狛江市', '東大和市', '清瀬市', '東久留米市',
+          '武蔵村山市', '多摩市', '稲城市', '羽村市', 'あきる野市', '西東京市'
+        ];
+        const ward = WARD_PROSPERITY_ORDER.find(w => r.address.includes(w)) || '其他';
+        if (!selectedWards.includes(ward)) return false;
+      }
+
+      // 3. Score Filter
+      if (useCustomScoreRange) {
+        if (r.score < minScore || r.score > maxScore) return false;
+      } else {
+        if (selectedScoreRanges.length === 0) return false;
+        
+        let match = false;
+        for (const range of selectedScoreRanges) {
+          if (range === '4.0+' && r.score >= 4.0) match = true;
+          else if (range === '3.9' && r.score >= 3.9 && r.score < 4.0) match = true;
+          else if (range === '3.8' && r.score >= 3.8 && r.score < 3.9) match = true;
+          else if (range === '3.7' && r.score >= 3.7 && r.score < 3.8) match = true;
+          else if (range === '3.6' && r.score >= 3.6 && r.score < 3.7) match = true;
+          else if (range === '3.5' && r.score >= 3.5 && r.score < 3.6) match = true;
+          else if (range === '3.4' && r.score >= 3.4 && r.score < 3.5) match = true;
+          else if (range === '3.4-' && r.score < 3.4) match = true;
+        }
+        if (!match) return false;
+      }
+
+      // 4. Awards & Hyakumeiten Filter
+      if (requireAward || requireHyakumeiten) {
+        const { awards, hyakumeiten } = getAwards(r);
+        const hasAward = awards.length > 0;
+        const hasHyakumeiten = hyakumeiten.length > 0;
+        
+        if (requireAward && requireHyakumeiten) {
+          if (!hasAward && !hasHyakumeiten) return false;
+        } else if (requireAward && !hasAward) {
+          return false;
+        } else if (requireHyakumeiten && !hasHyakumeiten) {
+          return false;
+        }
+      }
+
+      // 6. Days Filter
+      if (selectedDay) {
+        const hours = r.storeInfo?.['営業時間'] || r.businessHours;
+        if (isClosedOnDay(hours, selectedDay)) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+
+    baseRestaurants.forEach(r => {
+      const cuisineStr = r.cuisine || (r as any).genre || 'UNKNOWN_OTHER';
+      cuisineStr.split('、').forEach((c: string) => {
         let trimmed = c.trim();
         if (trimmed === 'カレーうどん') trimmed = 'うどん';
         counts[trimmed] = (counts[trimmed] || 0) + 1;
       });
     });
     return counts;
-  }, [tokyoRestaurants]);
+  }, [tokyoRestaurants, viewMode, userRestaurantData, searchQuery, selectedWards, useCustomScoreRange, minScore, maxScore, selectedScoreRanges, requireAward, requireHyakumeiten, selectedDay]);
 
   const groupedCuisines = useMemo(() => {
     const cuisines = new Set<string>();
-    Object.keys(cuisineCounts).forEach(c => cuisines.add(c));
+    tokyoRestaurants.forEach(r => {
+      const cuisineStr = r.cuisine || (r as any).genre || 'UNKNOWN_OTHER';
+      cuisineStr.split('、').forEach((c: string) => {
+        let trimmed = c.trim();
+        if (trimmed === 'カレーうどん') trimmed = 'うどん';
+        cuisines.add(trimmed);
+      });
+    });
     
     const groups: Record<string, string[]> = {};
     Array.from(cuisines).forEach(c => {
@@ -254,11 +337,13 @@ export default function App() {
     });
 
     return groups;
-  }, [cuisineCounts]);
+  }, [tokyoRestaurants, cuisineCounts]);
 
   const uniqueCuisines = useMemo(() => {
     return Object.values(groupedCuisines).flat();
   }, [groupedCuisines]);
+
+  const [markerColors, setMarkerColors] = useState<Record<string, string>>(defaultMarkerColors);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -266,6 +351,41 @@ export default function App() {
     });
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    const loadColors = async () => {
+      if (user) {
+        try {
+          const prefDoc = await getDoc(doc(db, `users/${user.uid}/preferences/colors`));
+          if (prefDoc.exists() && prefDoc.data().markerColors) {
+            setMarkerColors(prefDoc.data().markerColors);
+          }
+        } catch (error) {
+          console.error("Failed to load colors:", error);
+        }
+      }
+    };
+    loadColors();
+  }, [user]);
+
+  const saveColors = async () => {
+    if (!user) {
+      alert("請先登入");
+      return;
+    }
+    try {
+      await setDoc(doc(db, `users/${user.uid}/preferences/colors`), {
+        markerColors
+      }, { merge: true });
+      alert("顏色已儲存！");
+    } catch (error: any) {
+      alert("儲存失敗：" + error.message);
+    }
+  };
+
+  const resetColors = () => {
+    setMarkerColors(defaultMarkerColors);
+  };
 
   useEffect(() => {
     const testDb = async () => {
@@ -294,6 +414,9 @@ export default function App() {
       const prefDoc = await getDoc(doc(db, `users/${user.uid}/preferences/filters`));
       if (prefDoc.exists()) {
         const data = prefDoc.data();
+        if (!tabFiltersRef.current.all) {
+          tabFiltersRef.current.all = {};
+        }
         if (data.selectedCuisines) tabFiltersRef.current.all.selectedCuisines = data.selectedCuisines;
         if (typeof data.minScore === 'number') tabFiltersRef.current.all.minScore = data.minScore;
         if (typeof data.maxScore === 'number') tabFiltersRef.current.all.maxScore = data.maxScore;
@@ -302,6 +425,8 @@ export default function App() {
           if (data.selectedCuisines) setSelectedCuisines(data.selectedCuisines);
           if (typeof data.minScore === 'number') setMinScore(data.minScore);
           if (typeof data.maxScore === 'number') setMaxScore(data.maxScore);
+          if (data.selectedScoreRanges) setSelectedScoreRanges(data.selectedScoreRanges);
+          if (typeof data.useCustomScoreRange === 'boolean') setUseCustomScoreRange(data.useCustomScoreRange);
         }
         setSaveStatus({ status: 'success', message: '設定已讀取！' });
       } else {
@@ -342,6 +467,8 @@ export default function App() {
       selectedCuisines,
       minScore,
       maxScore,
+      selectedScoreRanges,
+      useCustomScoreRange,
       selectedDay,
       requireAward,
       requireHyakumeiten,
@@ -354,6 +481,8 @@ export default function App() {
       setSelectedCuisines(newFilters.selectedCuisines);
       setMinScore(newFilters.minScore);
       setMaxScore(newFilters.maxScore);
+      setSelectedScoreRanges(newFilters.selectedScoreRanges);
+      setUseCustomScoreRange(newFilters.useCustomScoreRange);
       setSelectedDay(newFilters.selectedDay);
       setRequireAward(newFilters.requireAward);
       setRequireHyakumeiten(newFilters.requireHyakumeiten);
@@ -361,8 +490,10 @@ export default function App() {
     } else {
       // Initialize for the first time
       setSelectedCuisines([...uniqueCuisines]);
-      setMinScore(0);
+      setMinScore(3.5);
       setMaxScore(5.0);
+      setSelectedScoreRanges(['4.0+', '3.9', '3.8', '3.7', '3.6', '3.5', '3.4', '3.4-']);
+      setUseCustomScoreRange(false);
       setSelectedDay(null);
       setRequireAward(false);
       setRequireHyakumeiten(false);
@@ -376,7 +507,7 @@ export default function App() {
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, selectedCuisines, minScore, maxScore, requireAward, requireHyakumeiten, selectedDay, sortBy]);
+  }, [searchQuery, selectedCuisines, minScore, maxScore, selectedScoreRanges, useCustomScoreRange, requireAward, requireHyakumeiten, selectedDay, sortBy]);
 
   const savePreferences = async () => {
     if (!user) {
@@ -387,7 +518,9 @@ export default function App() {
       await setDoc(doc(db, `users/${user.uid}/preferences/filters`), {
         selectedCuisines,
         minScore,
-        maxScore
+        maxScore,
+        selectedScoreRanges,
+        useCustomScoreRange
       }, { merge: true });
       setSaveStatus({ status: 'success', message: '設定已儲存！' });
     } catch (error: any) {
@@ -404,12 +537,26 @@ export default function App() {
     const currentData = userRestaurantData[restaurantId] || {};
     const newValue = !currentData[field];
     
+    const updates: Partial<UserRestaurantData> = {
+      [field]: newValue
+    };
+
+    // Conflict resolution
+    if (newValue === true) {
+      if (field === 'favorite' || field === 'visited') {
+        updates.wantToGo = false;
+      } else if (field === 'wantToGo') {
+        updates.favorite = false;
+        updates.visited = false;
+      }
+    }
+    
     // Update local state immediately for better UX
     setUserRestaurantData(prev => ({
       ...prev,
       [restaurantId]: {
         ...prev[restaurantId],
-        [field]: newValue
+        ...updates
       }
     }));
 
@@ -418,7 +565,7 @@ export default function App() {
         visited: currentData.visited ?? false,
         favorite: currentData.favorite ?? false,
         wantToGo: currentData.wantToGo ?? false,
-        [field]: newValue,
+        ...updates,
         updatedAt: new Date().toISOString()
       }, { merge: true });
     } catch (error: any) {
@@ -427,16 +574,43 @@ export default function App() {
       // Revert local state on error
       setUserRestaurantData(prev => ({
         ...prev,
-        [restaurantId]: {
-          ...prev[restaurantId],
-          [field]: !newValue
-        }
+        [restaurantId]: currentData
       }));
     }
   };
 
 
   
+
+  const saveNote = async (restaurantId: string, note: string) => {
+    if (!user) return;
+    
+    const currentData = userRestaurantData[restaurantId] || {};
+    
+    // Update local state immediately
+    setUserRestaurantData(prev => ({
+      ...prev,
+      [restaurantId]: {
+        ...prev[restaurantId],
+        notes: note
+      }
+    }));
+
+    try {
+      await setDoc(doc(db, `users/${user.uid}/restaurants/${restaurantId}`), {
+        notes: note,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    } catch (error: any) {
+      console.error("Error saving note:", error);
+      alert("儲存失敗：" + (error.message || error));
+      // Revert local state
+      setUserRestaurantData(prev => ({
+        ...prev,
+        [restaurantId]: currentData
+      }));
+    }
+  };
 
   const uniqueStationsData = useMemo(() => {
     if (!tokyoStationsData) return null;
@@ -457,6 +631,9 @@ export default function App() {
 
     const filteredRestaurants = useMemo(() => {
     let result = tokyoRestaurants.filter(r => {
+      // Always include the highlighted restaurant
+      if (r.id === highlightedRestaurantId) return true;
+
       // 0. View Mode Filter
       if (viewMode === 'visited' && !userRestaurantData[r.id]?.visited) return false;
       if (viewMode === 'favorite' && !userRestaurantData[r.id]?.favorite) return false;
@@ -472,7 +649,10 @@ export default function App() {
         const WARD_PROSPERITY_ORDER = [
           '港区', '新宿区', '渋谷区', '中央区', '千代田区', '豊島区', '台東区', '目黒区', '品川区', '世田谷区',
           '中野区', '杉並区', '江東区', '墨田区', '大田区', '北区', '荒川区', '板橋区', '練馬区', '足立区',
-          '葛飾区', '江戸川区', '武蔵野市', '三鷹市', '調布市', '町田市', '八王子市', '立川市'
+          '葛飾区', '江戸川区', '文京区',
+          '八王子市', '立川市', '武蔵野市', '三鷹市', '青梅市', '府中市', '昭島市', '調布市', '町田市', '小金井市',
+          '小平市', '日野市', '東村山市', '国分寺市', '国立市', '福生市', '狛江市', '東大和市', '清瀬市', '東久留米市',
+          '武蔵村山市', '多摩市', '稲城市', '羽村市', 'あきる野市', '西東京市'
         ];
         const ward = WARD_PROSPERITY_ORDER.find(w => r.address.includes(w)) || '其他';
         if (!selectedWards.includes(ward)) return false;
@@ -480,7 +660,8 @@ export default function App() {
 
       // 2. Cuisine Filter
       if (selectedCuisines.length > 0) {
-        const restaurantCuisines = r.cuisine.split('、').map(c => {
+        const cuisineStr = r.cuisine || (r as any).genre || 'UNKNOWN_OTHER';
+        const restaurantCuisines = cuisineStr.split('、').map((c: string) => {
           let trimmed = c.trim();
           if (trimmed === 'カレーうどん') trimmed = 'うどん';
           return trimmed;
@@ -498,7 +679,24 @@ export default function App() {
       }
 
       // 3. Score Filter
-      if (r.score < minScore || r.score > maxScore) return false;
+      if (useCustomScoreRange) {
+        if (r.score < minScore || r.score > maxScore) return false;
+      } else {
+        if (selectedScoreRanges.length === 0) return false;
+        
+        let match = false;
+        for (const range of selectedScoreRanges) {
+          if (range === '4.0+' && r.score >= 4.0) match = true;
+          else if (range === '3.9' && r.score >= 3.9 && r.score < 4.0) match = true;
+          else if (range === '3.8' && r.score >= 3.8 && r.score < 3.9) match = true;
+          else if (range === '3.7' && r.score >= 3.7 && r.score < 3.8) match = true;
+          else if (range === '3.6' && r.score >= 3.6 && r.score < 3.7) match = true;
+          else if (range === '3.5' && r.score >= 3.5 && r.score < 3.6) match = true;
+          else if (range === '3.4' && r.score >= 3.4 && r.score < 3.5) match = true;
+          else if (range === '3.4-' && r.score < 3.4) match = true;
+        }
+        if (!match) return false;
+      }
 
       // 4. Awards & Hyakumeiten Filter (OR logic if both checked)
       if (requireAward || requireHyakumeiten) {
@@ -534,10 +732,58 @@ export default function App() {
     });
 
     return result;
-  }, [searchQuery, selectedCuisines, selectedWards, minScore, maxScore, requireAward, requireHyakumeiten, selectedDay, viewMode, userRestaurantData, sortBy, tokyoRestaurants]);
+  }, [searchQuery, selectedCuisines, selectedWards, minScore, maxScore, selectedScoreRanges, useCustomScoreRange, requireAward, requireHyakumeiten, selectedDay, viewMode, userRestaurantData, sortBy, tokyoRestaurants]);
 
-  const totalPages = Math.ceil(filteredRestaurants.length / itemsPerPage);
-  const paginatedRestaurants = filteredRestaurants.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const [mapRefreshKey, setMapRefreshKey] = useState(0);
+  const previouslyShownIdsRef = React.useRef<Set<string>>(new Set());
+
+  const mapRestaurants = useMemo(() => {
+    if (filteredRestaurants.length <= 1000) {
+      return filteredRestaurants;
+    }
+
+    const prioritized: Restaurant[] = [];
+    const others: Restaurant[] = [];
+
+    filteredRestaurants.forEach(r => {
+      const data = userRestaurantData[r.id];
+      if (data?.favorite || data?.visited || data?.wantToGo) {
+        prioritized.push(r);
+      } else {
+        others.push(r);
+      }
+    });
+
+    if (prioritized.length >= 1000) {
+      return prioritized.slice(0, 1000);
+    }
+
+    const needed = 1000 - prioritized.length;
+    
+    // Shuffle others
+    const shuffledOthers = [...others].sort(() => Math.random() - 0.5);
+    
+    // Try to pick ones not in previouslyShownIdsRef
+    const unshown = shuffledOthers.filter(r => !previouslyShownIdsRef.current.has(r.id));
+    const shown = shuffledOthers.filter(r => previouslyShownIdsRef.current.has(r.id));
+
+    let selectedOthers: Restaurant[] = [];
+    if (unshown.length >= needed) {
+      selectedOthers = unshown.slice(0, needed);
+    } else {
+      // We need more than unshown has. Take all unshown, and some from shown.
+      previouslyShownIdsRef.current.clear();
+      selectedOthers = [...unshown, ...shown].slice(0, needed);
+    }
+
+    // Add selected to previouslyShownIdsRef
+    selectedOthers.forEach(r => previouslyShownIdsRef.current.add(r.id));
+
+    return [...prioritized, ...selectedOthers];
+  }, [filteredRestaurants, userRestaurantData, mapRefreshKey]);
+
+  const totalPages = Math.ceil(mapRestaurants.length / itemsPerPage);
+  const paginatedRestaurants = mapRestaurants.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   if (isLoadingData) {
     return (
@@ -625,10 +871,16 @@ export default function App() {
         setMinScore={setMinScore}
         maxScore={maxScore}
         setMaxScore={setMaxScore}
+        selectedScoreRanges={selectedScoreRanges}
+        setSelectedScoreRanges={setSelectedScoreRanges}
+        useCustomScoreRange={useCustomScoreRange}
+        setUseCustomScoreRange={setUseCustomScoreRange}
         requireAward={requireAward}
         setRequireAward={setRequireAward}
         requireHyakumeiten={requireHyakumeiten}
         setRequireHyakumeiten={setRequireHyakumeiten}
+        setIsImageUploadOpen={setIsImageUploadOpen}
+        setIsUrlSearchOpen={setIsUrlSearchOpen}
       />
 
       {/* Restaurant List Panel */}
@@ -684,10 +936,15 @@ export default function App() {
               user={user}
               userRestaurantData={userRestaurantData}
               toggleStatus={toggleStatus}
+              saveNote={saveNote}
               hoveredRestaurantId={hoveredRestaurant?.id}
               setHoveredRestaurant={setHoveredRestaurant}
-              setMapCenter={setMapCenter}
+              setMapCenter={(center) => {
+                setMapCenter(center);
+                setMapZoom(15);
+              }}
               viewMode={viewMode}
+              isListOpen={isListOpen}
             />
           ))}
           {filteredRestaurants.length === 0 && (
@@ -782,13 +1039,13 @@ export default function App() {
           </LayersControl>
           
           <BaseLayerTracker onBaseLayerChange={setActiveBaseLayer} />
-          <MapController center={mapCenter} zoom={15} />
+          <MapController center={mapCenter} zoom={mapZoom} />
 
-          {filteredRestaurants.filter(r => r.lat !== 0 && r.lng !== 0).map((restaurant) => (
+          {mapRestaurants.filter(r => r.lat !== 0 && r.lng !== 0).map((restaurant) => (
             <Marker
-              key={`${restaurant.id}-${userRestaurantData[restaurant.id]?.visited}-${userRestaurantData[restaurant.id]?.wishlist}-${hoveredRestaurant?.id === restaurant.id}`}
+              key={`${restaurant.id}-${userRestaurantData[restaurant.id]?.visited}-${userRestaurantData[restaurant.id]?.wantToGo}-${userRestaurantData[restaurant.id]?.favorite}-${hoveredRestaurant?.id === restaurant.id}-${highlightedRestaurantId === restaurant.id}`}
               position={[restaurant.lat, restaurant.lng]}
-              icon={createCustomIcon(restaurant.cuisine, restaurant.score, userRestaurantData[restaurant.id], hoveredRestaurant?.id === restaurant.id)}
+              icon={createCustomIcon(restaurant.cuisine || (restaurant as any).genre || 'UNKNOWN_OTHER', restaurant.score, userRestaurantData[restaurant.id], hoveredRestaurant?.id === restaurant.id || highlightedRestaurantId === restaurant.id, markerColors)}
               eventHandlers={{
                 mouseover: (e) => {
                   if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
@@ -805,12 +1062,116 @@ export default function App() {
                     setIsHoveringMapMarker(false);
                   }, 300);
                 },
-                click: () => window.open(restaurant.url, '_blank', 'noopener,noreferrer'),
+                click: () => {
+                  const gmapsUrl = restaurant.googleMapUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(restaurant.name + ' ' + restaurant.address)}`;
+                  window.open(gmapsUrl, '_blank', 'noopener,noreferrer');
+                },
               }}
-              zIndexOffset={hoveredRestaurant?.id === restaurant.id ? 1000 : 0}
+              zIndexOffset={
+                (hoveredRestaurant?.id === restaurant.id || highlightedRestaurantId === restaurant.id)
+                  ? 1000 
+                  : (userRestaurantData[restaurant.id]?.favorite ? 800 
+                    : userRestaurantData[restaurant.id]?.wantToGo ? 700 
+                    : userRestaurantData[restaurant.id]?.visited ? 600 
+                    : Math.floor(restaurant.score * 100))
+              }
             />
           ))}
         </MapContainer>
+
+        <ImageUploadModal 
+          isOpen={isImageUploadOpen} 
+          onClose={() => setIsImageUploadOpen(false)} 
+          user={user}
+          toggleStatus={toggleStatus}
+          onSuccess={(newRestaurant) => {
+            setTokyoRestaurants(prev => [...prev, newRestaurant]);
+            setSearchQuery('');
+            setSelectedCuisines([...uniqueCuisines, newRestaurant.cuisine].filter(Boolean));
+            setSelectedWards([]);
+            setUseCustomScoreRange(false);
+            setSelectedScoreRanges(['4.0+', '3.9', '3.8', '3.7', '3.6', '3.5', '3.4', '3.4-']);
+            setMinScore(3.5);
+            setMaxScore(5.0);
+            setRequireAward(false);
+            setRequireHyakumeiten(false);
+            setSelectedDay(null);
+            setViewMode('all');
+            setMapCenter([newRestaurant.lat, newRestaurant.lng]);
+            setMapZoom(18);
+            setHighlightedRestaurantId(newRestaurant.id);
+            setTimeout(() => setHighlightedRestaurantId(null), 5000); // Remove highlight after 5s
+          }} 
+        />
+
+        <AddRestaurantModal 
+          isOpen={isUrlSearchOpen} 
+          onClose={() => setIsUrlSearchOpen(false)} 
+          user={user}
+          toggleStatus={toggleStatus}
+          onSuccess={(newRestaurant) => {
+            setTokyoRestaurants(prev => [...prev, newRestaurant]);
+            setSearchQuery('');
+            setSelectedCuisines([...uniqueCuisines, newRestaurant.cuisine].filter(Boolean));
+            setSelectedWards([]);
+            setUseCustomScoreRange(false);
+            setSelectedScoreRanges(['4.0+', '3.9', '3.8', '3.7', '3.6', '3.5', '3.4', '3.4-']);
+            setMinScore(3.5);
+            setMaxScore(5.0);
+            setRequireAward(false);
+            setRequireHyakumeiten(false);
+            setSelectedDay(null);
+            setViewMode('all');
+            setMapCenter([newRestaurant.lat, newRestaurant.lng]);
+            setMapZoom(18);
+            setHighlightedRestaurantId(newRestaurant.id);
+            setTimeout(() => setHighlightedRestaurantId(null), 5000);
+          }} 
+        />
+
+        {/* Floating Message for > 1000 restaurants */}
+        {filteredRestaurants.length > 1000 && (
+          <div className="absolute top-6 left-1/2 -translate-x-1/2 z-[400] pointer-events-auto">
+            <button 
+              onClick={() => setMapRefreshKey(k => k + 1)}
+              className="bg-white/90 backdrop-blur-sm hover:bg-orange-50 border border-orange-200/50 shadow-lg px-4 py-2 rounded-full flex items-center gap-2 text-sm font-bold text-slate-700 transition-all active:scale-95"
+            >
+              <RefreshCw className="w-4 h-4 text-orange-500" />
+              符合條件的餐廳共 {filteredRestaurants.length} 間，已隨機顯示 1000 間，點此更換一批
+            </button>
+          </div>
+        )}
+
+        {/* Legend */}
+        <div className="absolute bottom-32 right-6 z-[400] bg-white/90 backdrop-blur-sm p-3 rounded-xl shadow-lg border border-slate-200/50 pointer-events-auto">
+          <div className="flex items-center justify-between mb-2 gap-4">
+            <p className="text-xs font-bold text-slate-700">分數圖例</p>
+            {user && (
+              <div className="flex gap-1">
+                <button onClick={saveColors} className="text-[10px] bg-blue-50 text-blue-600 hover:bg-blue-100 px-1.5 py-0.5 rounded border border-blue-100">儲存</button>
+                <button onClick={resetColors} className="text-[10px] bg-slate-50 text-slate-600 hover:bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">預設</button>
+              </div>
+            )}
+          </div>
+          <div className="space-y-1.5">
+            {[
+              { label: '4.0+', key: '4.0+' },
+              { label: '3.7 - 3.99', key: '3.7-3.99' },
+              { label: '3.4 - 3.69', key: '3.4-3.69' },
+              { label: '3.4 以下', key: '3.4-' }
+            ].map(({ label, key }) => (
+              <div key={key} className="flex items-center gap-2">
+                <input 
+                  type="color" 
+                  value={markerColors[key]} 
+                  onChange={(e) => setMarkerColors(prev => ({ ...prev, [key]: e.target.value }))}
+                  className="w-4 h-4 p-0 border-0 rounded cursor-pointer"
+                />
+                <span className="text-xs text-slate-600">{label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
 
         {/* Floating Info Note */}
         <div className="absolute bottom-6 right-6 z-[400] flex flex-col gap-2 pointer-events-none">
@@ -818,17 +1179,29 @@ export default function App() {
             <div className="flex gap-2 items-start">
               <Info className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
               <p className="text-sm text-slate-600 leading-relaxed">
-                此地圖收錄了 {tokyoRestaurants.length} 家東京高分餐廳。點擊標記即可開啟官方 Tabelog 頁面。
+                此地圖收錄了 {tokyoRestaurants.length} 家東京高分餐廳。點擊標記即可開啟 Google Maps 頁面。
               </p>
             </div>
           </div>
-          <button 
-            onClick={() => fetchData(true)}
-            className="self-end bg-white/90 backdrop-blur-sm hover:bg-orange-50 text-orange-600 border border-orange-200/50 shadow-lg px-3 py-2 rounded-xl flex items-center gap-2 text-sm font-bold transition-all pointer-events-auto active:scale-95"
-          >
-            <RefreshCw className="w-4 h-4" />
-            強制更新最新資料
-          </button>
+          <div className="flex justify-end gap-2 pointer-events-auto">
+            <button 
+              onClick={() => {
+                setMapCenter([35.6895, 139.6917]);
+                setMapZoom(12);
+              }}
+              className="bg-white/90 backdrop-blur-sm hover:bg-slate-50 text-slate-700 border border-slate-200/50 shadow-lg p-2 rounded-xl flex items-center justify-center transition-all active:scale-95"
+              title="重設地圖視角"
+            >
+              <LocateFixed className="w-5 h-5" />
+            </button>
+            <button 
+              onClick={() => fetchData(true)}
+              className="bg-white/90 backdrop-blur-sm hover:bg-orange-50 text-orange-600 border border-orange-200/50 shadow-lg px-3 py-2 rounded-xl flex items-center gap-2 text-sm font-bold transition-all active:scale-95"
+            >
+              <RefreshCw className="w-4 h-4" />
+              強制更新最新資料
+            </button>
+          </div>
         </div>
       </div>
 
@@ -852,6 +1225,14 @@ export default function App() {
         />
       )}
       
+      {user && (
+        <MigrationModal
+          isOpen={isMigrationModalOpen}
+          onClose={() => setIsMigrationModalOpen(false)}
+          userId={user.uid}
+        />
+      )}
+
     </div>
   );
 }
